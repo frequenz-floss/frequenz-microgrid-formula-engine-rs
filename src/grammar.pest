@@ -1,0 +1,27 @@
+/// License: MIT
+/// Copyright © 2024 Frequenz Energy-as-a-Service GmbH
+
+
+formula = _{ SOI ~ expr ~ EOI }
+
+num = @{ (ASCII_DIGIT | "." )+ }
+component = @{ "#" ~ ASCII_DIGIT+ }
+
+unary_minus = { "-" }
+primary = _{ num | component | "(" ~ expr ~ ")" | func }
+atom = _{ unary_minus? ~ primary }
+
+op = _{ add | sub | mul | div }
+    add = { "+" }
+    sub = { "-" }
+    mul = { "*" }
+    div = { "/" }
+
+func = _{ coalesce | min | max }
+list = _{ expr ~ ("," ~ expr)+ }
+    coalesce = { "COALESCE(" ~ list ~ ")" }
+    min = { "MIN(" ~ list ~ ")" }
+    max = { "MAX(" ~ list ~ ")" }
+
+expr = { atom ~ (op ~ atom)* }
+WHITESPACE = _{ " " }
