@@ -1,0 +1,9 @@
+# Changes here will be overwritten by Copier
+_commit: 97d6415
+_src_path: ../frequenz-copier-rs
+github_username: frequenz-floss
+project_author: Frequenz Energy-as-a-Service GmbH
+project_author_email: floss@frequenz.com
+project_description: A library to created formulas over streamed data
+project_name: microgrid-formula-engine-rs
+python: true

@@ -1,12 +1,28 @@
 [package]
 name = "frequenz-microgrid-formula-engine"
+description = "A library to created formulas over streamed data"
 version = "0.1.0"
 edition = "2021"
+authors = ["Frequenz Energy-as-a-Service GmbH"]
+license = "MIT"
+
+[lib]
+name = "frequenz_microgrid_formula_engine_rs"
+path = "src/lib.rs"
+
+crate-type = ["cdylib", "rlib"]
+
+
+[features]
+python = ["pyo3"]
+
 
 [dependencies]
 pest = "2.6"
 pest_derive = "2.6"
 lazy_static = "1.5"
+
+pyo3 = { version = "0.23", features = ["extension-module", "chrono"], optional = true }
 
 [dev-dependencies]
 rand = "0.8"
