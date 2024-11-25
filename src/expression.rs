@@ -205,11 +205,15 @@ impl Function {
                 (None, Some(x)) => Some(x),
                 (None, None) => None,
             }),
-            Function::Max => values
-                .iter()
-                .copied()
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or_default(),
+            Function::Max => values.iter().copied().fold(None, |acc, x| match (acc, x) {
+                (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
+                    Some(std::cmp::Ordering::Greater) => Some(acc),
+                    _ => Some(x),
+                },
+                (Some(acc), None) => Some(acc),
+                (None, Some(x)) => Some(x),
+                (None, None) => None,
+            }),
         }
     }
 }
