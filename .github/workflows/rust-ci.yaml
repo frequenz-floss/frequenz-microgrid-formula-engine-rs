@@ -1,0 +1,55 @@
+
+name: Rust CI
+
+on:
+  merge_group:
+  pull_request:
+  push:
+    # We need to explicitly include tags because otherwise when adding
+    # `branches-ignore` it will only trigger on branches.
+    tags:
+      - '*'
+    branches-ignore:
+      # Ignore pushes to merge queues.
+      # We only want to test the merge commit (`merge_group` event), the hashes
+      # in the push were already tested by the PR checks
+      - 'gh-readonly-queue/**'
+      - 'dependabot/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Fetch sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run tests
+        uses: frequenz-floss/gh-action-cargo-test@v1.0.0
+
+  release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: '${{ runner.os }}-cargo-registry-${{ hashFiles(''**/Cargo.lock'') }}'
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: '${{ runner.os }}-cargo-index-${{ hashFiles(''**/Cargo.lock'') }}'
+      - uses: actions/cache@v3
+        with:
+          path: target
+          key: '${{ runner.os }}-cargo-build-target-${{ hashFiles(''**/Cargo.lock'') }}'
+      - name: package
+        run: cargo package
+      - name: publish
+        run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
+

@@ -43,3 +43,6 @@ pub use formula_engine::FormulaEngine;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "python")]
+mod python;
