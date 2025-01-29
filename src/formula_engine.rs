@@ -1,12 +1,10 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
+use crate::traits::NumberLike;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::{
-    ops::{Add, Div, Mul, Neg, Sub},
-    str::FromStr,
-};
+use std::str::FromStr;
 
 use pest::{iterators::Pairs, Parser};
 
@@ -24,17 +22,7 @@ pub struct FormulaEngine<T> {
     components: HashSet<usize>,
 }
 
-impl<
-        'a,
-        T: FromStr
-            + Copy
-            + Neg<Output = T>
-            + Add<Output = T>
-            + Sub<Output = T>
-            + Mul<Output = T>
-            + Div<Output = T>
-            + PartialOrd,
-    > FormulaEngine<T>
+impl<'a, T: FromStr + NumberLike<T> + PartialOrd> FormulaEngine<T>
 where
     Expr<T>: TryFrom<Pairs<'a, Rule>>,
     <T as FromStr>::Err: Debug,

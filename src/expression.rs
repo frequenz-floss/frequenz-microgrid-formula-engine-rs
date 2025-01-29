@@ -4,9 +4,9 @@
 use crate::{
     error::FormulaError,
     parser::{Rule, PRATT_PARSER},
+    traits::NumberLike,
 };
 use pest::iterators::Pairs;
-use std::ops::{Add, Div, Mul, Sub};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -100,16 +100,7 @@ where
     }
 }
 
-impl<
-        T: Copy
-            + Neg<Output = T>
-            + Add<Output = T>
-            + Sub<Output = T>
-            + Mul<Output = T>
-            + Div<Output = T>
-            + PartialOrd,
-    > Expr<T>
-{
+impl<T: NumberLike<T> + PartialOrd> Expr<T> {
     pub fn calculate(&self, values: &HashMap<usize, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
             Expr::Value(value) => *value,
@@ -155,18 +146,7 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn apply<
-        T: Copy
-            + Neg<Output = T>
-            + Add<Output = T>
-            + Sub<Output = T>
-            + Mul<Output = T>
-            + Div<Output = T>,
-    >(
-        &self,
-        lhs: Option<T>,
-        rhs: Option<T>,
-    ) -> Option<T> {
+    pub fn apply<T: NumberLike<T>>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
         if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
             Some(match self {
                 Op::Add => lhs + rhs,

@@ -37,6 +37,7 @@ mod error;
 mod expression;
 mod formula_engine;
 mod parser;
+pub mod traits;
 
 pub use error::FormulaError;
 pub use formula_engine::FormulaEngine;
