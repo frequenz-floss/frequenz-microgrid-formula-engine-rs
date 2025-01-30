@@ -70,7 +70,12 @@ where
                             .map(|x| Expr::try_new(Pairs::single(x)))
                             .collect::<Result<_, _>>()?,
                     },
-                    rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
+                    rule => {
+                        return Err(FormulaError(format!(
+                            "Expr::parse expected atom, found {:?}",
+                            rule
+                        )))
+                    }
                 })
             })
             .map_infix(|lhs, op, rhs| {
@@ -86,7 +91,12 @@ where
                             Rule::sub => Op::Sub,
                             Rule::mul => Op::Mul,
                             Rule::div => Op::Div,
-                            rule => unreachable!("Expr::parse expected operator, found {:?}", rule),
+                            rule => {
+                                return Err(FormulaError(format!(
+                                    "Expr::parse expected operator, found {:?}",
+                                    rule
+                                )))
+                            }
                         },
                         rhs: Box::new(rhs),
                     })
@@ -102,11 +112,21 @@ where
                         rhs
                     }
                 }
-                _ => unreachable!(),
+                rule => {
+                    return Err(FormulaError(format!(
+                        "Expr::parse unexpected prefix rule: {:?}",
+                        rule
+                    )))
+                }
             })
             .map_postfix(|lhs, op| match op.as_rule() {
                 Rule::EOI => lhs,
-                _ => unreachable!(),
+                rule => {
+                    return Err(FormulaError(format!(
+                        "Expr::parse unexpected postfix rule: {:?}",
+                        rule
+                    )))
+                }
             })
             .parse(value)
     }
