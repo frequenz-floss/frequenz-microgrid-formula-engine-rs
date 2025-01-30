@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::str::FromStr;
 
-use pest::{iterators::Pairs, Parser};
+use pest::Parser;
 
 use crate::{
     error::FormulaError,
@@ -24,14 +24,12 @@ pub struct FormulaEngine<T> {
 
 impl<'a, T: FromStr + NumberLike<T> + PartialOrd> FormulaEngine<T>
 where
-    Expr<T>: TryFrom<Pairs<'a, Rule>>,
     <T as FromStr>::Err: Debug,
-    FormulaError: From<<Expr<T> as TryFrom<Pairs<'a, Rule>>>::Error>,
 {
     /// Create a new FormulaEngine from a formula string.
     pub fn try_new(s: &'a str) -> Result<Self, FormulaError> {
         let pairs = FormulaParser::parse(Rule::formula, s)?;
-        let expr = Expr::try_from(pairs)?;
+        let expr = Expr::try_new(pairs)?;
         let components = expr.components();
 
         Ok(Self { expr, components })

@@ -29,17 +29,15 @@ pub enum Expr<T> {
     Component(usize),
 }
 
-impl<T: FromStr + Debug> TryFrom<Pairs<'_, Rule>> for Expr<T>
+impl<T: FromStr> Expr<T>
 where
     <T as FromStr>::Err: Debug,
 {
-    type Error = FormulaError;
-
-    fn try_from(value: Pairs<Rule>) -> Result<Self, Self::Error> {
+    pub(crate) fn try_new(value: Pairs<Rule>) -> Result<Self, FormulaError> {
         Ok(PRATT_PARSER
             .map_primary(|primary| match primary.as_rule() {
                 Rule::expr => {
-                    Expr::try_from(primary.into_inner()).unwrap_or_else(|_| Expr::Value(None))
+                    Expr::try_new(primary.into_inner()).unwrap_or_else(|_| Expr::Value(None))
                 }
                 Rule::num => Expr::Value(primary.as_str().parse().ok()),
                 Rule::component => primary
@@ -53,7 +51,7 @@ where
                     args: primary
                         .into_inner()
                         .map(|x| {
-                            Expr::try_from(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
+                            Expr::try_new(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
                         })
                         .collect(),
                 },
@@ -62,7 +60,7 @@ where
                     args: primary
                         .into_inner()
                         .map(|x| {
-                            Expr::try_from(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
+                            Expr::try_new(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
                         })
                         .collect(),
                 },
@@ -71,7 +69,7 @@ where
                     args: primary
                         .into_inner()
                         .map(|x| {
-                            Expr::try_from(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
+                            Expr::try_new(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
                         })
                         .collect(),
                 },
