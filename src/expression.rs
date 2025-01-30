@@ -34,67 +34,81 @@ where
     <T as FromStr>::Err: Debug,
 {
     pub(crate) fn try_new(value: Pairs<Rule>) -> Result<Self, FormulaError> {
-        Ok(PRATT_PARSER
-            .map_primary(|primary| match primary.as_rule() {
-                Rule::expr => {
-                    Expr::try_new(primary.into_inner()).unwrap_or_else(|_| Expr::Value(None))
-                }
-                Rule::num => Expr::Value(primary.as_str().parse().ok()),
-                Rule::component => primary
-                    .as_str()
-                    .replace("#", "")
-                    .parse()
-                    .map(Expr::Component)
-                    .unwrap_or_else(|_| Expr::Value(None)),
-                Rule::coalesce => Expr::Function {
-                    function: Function::Coalesce,
-                    args: primary
-                        .into_inner()
-                        .map(|x| {
-                            Expr::try_new(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
-                        })
-                        .collect(),
-                },
-                Rule::min => Expr::Function {
-                    function: Function::Min,
-                    args: primary
-                        .into_inner()
-                        .map(|x| {
-                            Expr::try_new(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
-                        })
-                        .collect(),
-                },
-                Rule::max => Expr::Function {
-                    function: Function::Max,
-                    args: primary
-                        .into_inner()
-                        .map(|x| {
-                            Expr::try_new(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
-                        })
-                        .collect(),
-                },
-                rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
+        PRATT_PARSER
+            .map_primary(|primary| {
+                Ok(match primary.as_rule() {
+                    Rule::expr => Expr::try_new(primary.into_inner())?,
+                    Rule::num => primary
+                        .as_str()
+                        .parse()
+                        .map(|num| Expr::Value(Some(num)))
+                        .map_err(|e| FormulaError(format!("Invalid number: {:?}", e)))?,
+                    Rule::component => primary
+                        .as_str()
+                        .replace("#", "")
+                        .parse()
+                        .map(Expr::Component)
+                        .map_err(|e| FormulaError(format!("Invalid component id: {:?}", e)))?,
+                    Rule::coalesce => Expr::Function {
+                        function: Function::Coalesce,
+                        args: primary
+                            .into_inner()
+                            .map(|x| Expr::try_new(Pairs::single(x)))
+                            .collect::<Result<_, _>>()?,
+                    },
+                    Rule::min => Expr::Function {
+                        function: Function::Min,
+                        args: primary
+                            .into_inner()
+                            .map(|x| Expr::try_new(Pairs::single(x)))
+                            .collect::<Result<_, _>>()?,
+                    },
+                    Rule::max => Expr::Function {
+                        function: Function::Max,
+                        args: primary
+                            .into_inner()
+                            .map(|x| Expr::try_new(Pairs::single(x)))
+                            .collect::<Result<_, _>>()?,
+                    },
+                    rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
+                })
             })
-            .map_infix(|lhs, op, rhs| Expr::Op {
-                lhs: Box::new(lhs),
-                op: match op.as_rule() {
-                    Rule::add => Op::Add,
-                    Rule::sub => Op::Sub,
-                    Rule::mul => Op::Mul,
-                    Rule::div => Op::Div,
-                    rule => unreachable!("Expr::parse expected operator, found {:?}", rule),
-                },
-                rhs: Box::new(rhs),
+            .map_infix(|lhs, op, rhs| {
+                if lhs.is_err() {
+                    lhs
+                } else if rhs.is_err() {
+                    rhs
+                } else if let (Ok(lhs), Ok(rhs)) = (lhs, rhs) {
+                    Ok(Expr::Op {
+                        lhs: Box::new(lhs),
+                        op: match op.as_rule() {
+                            Rule::add => Op::Add,
+                            Rule::sub => Op::Sub,
+                            Rule::mul => Op::Mul,
+                            Rule::div => Op::Div,
+                            rule => unreachable!("Expr::parse expected operator, found {:?}", rule),
+                        },
+                        rhs: Box::new(rhs),
+                    })
+                } else {
+                    Err(FormulaError("Internal error".to_string()))
+                }
             })
             .map_prefix(|op, rhs| match op.as_rule() {
-                Rule::unary_minus => Expr::UnaryMinus(Box::new(rhs)),
+                Rule::unary_minus => {
+                    if let Ok(rhs) = rhs {
+                        Ok(Expr::UnaryMinus(Box::new(rhs)))
+                    } else {
+                        rhs
+                    }
+                }
                 _ => unreachable!(),
             })
             .map_postfix(|lhs, op| match op.as_rule() {
                 Rule::EOI => lhs,
                 _ => unreachable!(),
             })
-            .parse(value))
+            .parse(value)
     }
 }
 
