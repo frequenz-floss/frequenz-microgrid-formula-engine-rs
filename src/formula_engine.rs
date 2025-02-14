@@ -6,13 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::str::FromStr;
 
-use pest::Parser;
-
-use crate::{
-    error::FormulaError,
-    expression::Expr,
-    parser::{FormulaParser, Rule},
-};
+use crate::{error::FormulaError, expression::Expr, parser};
 
 /// FormulaEngine holds the parsed expression and can calculate the result
 /// based on the provided component values.
@@ -22,14 +16,14 @@ pub struct FormulaEngine<T> {
     components: HashSet<usize>,
 }
 
-impl<'a, T: FromStr + NumberLike<T> + PartialOrd> FormulaEngine<T>
+impl<T: FromStr + NumberLike<T> + PartialOrd> FormulaEngine<T>
 where
     <T as FromStr>::Err: Debug,
 {
     /// Create a new FormulaEngine from a formula string.
-    pub fn try_new(s: &'a str) -> Result<Self, FormulaError> {
-        let pairs = FormulaParser::parse(Rule::formula, s)?;
-        let expr = Expr::try_new(pairs)?;
+    pub fn try_new(s: &str) -> Result<Self, FormulaError> {
+        let expr = parser::parse(s)?;
+
         let components = expr.components();
 
         Ok(Self { expr, components })
