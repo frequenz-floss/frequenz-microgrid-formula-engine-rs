@@ -35,7 +35,7 @@ where
     }
 
     /// Calculate the result of the formula based on the provided component values.
-    pub fn calculate(&self, values: HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
-        self.expr.calculate(&values)
+    pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
+        self.expr.calculate(values)
     }
 }

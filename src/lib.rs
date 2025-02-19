@@ -27,7 +27,7 @@ fn main() -> Result<(), FormulaError> {
     let fe = FormulaEngine::try_new("#0 + #1")?;
     let components = fe.components();
     assert_eq!(components, &[0, 1].into_iter().collect());
-    assert_eq!(fe.calculate(HashMap::from([(0, Some(1.)), (1, Some(2.))]))?, Some(3.0));
+    assert_eq!(fe.calculate(&HashMap::from([(0, Some(1.)), (1, Some(2.))]))?, Some(3.0));
     Ok(())
 }
 ```
