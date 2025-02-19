@@ -266,7 +266,7 @@ fn test_components_getter_function_function() {
     assert_eq!(fe.components(), &vec![0, 1, 2].into_iter().collect());
 }
 
-fn test_large_microgrid_formula(components: HashMap<usize, Option<f32>>) {
+fn test_large_microgrid_formula(components: HashMap<u64, Option<f32>>) {
     let formula_result = FormulaEngine::try_new(concat!(
         "MIN(0.0, COALESCE(#4 + #3, #2, COALESCE(#4, 0.0) + COALESCE(#3, 0.0))) + ",
         "MIN(0.0, COALESCE(#6, #5, 0.0)) + ",
@@ -325,7 +325,7 @@ fn test_large_microgrid_formula_fuzz() {
     }
 }
 
-fn test_large_microgrid_formula_2(components: HashMap<usize, Option<f32>>) {
+fn test_large_microgrid_formula_2(components: HashMap<u64, Option<f32>>) {
     let formula_result = FormulaEngine::try_new(concat!(
         "MAX(0.0, #1 - COALESCE(#2, #3, 0.0) - ",
         "COALESCE(#5, COALESCE(#7, 0.0) + COALESCE(#6, 0.0))) + ",

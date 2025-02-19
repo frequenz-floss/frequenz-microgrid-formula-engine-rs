@@ -21,13 +21,13 @@ pub enum Expr<T> {
         function: Function,
         args: Vec<Expr<T>>,
     },
-    Component(usize),
+    Component(u64),
 }
 
 impl<T: FromStr> Expr<T> where <T as FromStr>::Err: Debug {}
 
 impl<T: NumberLike<T> + PartialOrd> Expr<T> {
-    pub fn calculate(&self, values: &HashMap<usize, Option<T>>) -> Result<Option<T>, FormulaError> {
+    pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
             Expr::Value(value) => *value,
             Expr::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
@@ -45,7 +45,7 @@ impl<T: NumberLike<T> + PartialOrd> Expr<T> {
         })
     }
 
-    pub fn components(&self) -> HashSet<usize> {
+    pub fn components(&self) -> HashSet<u64> {
         match self {
             Expr::Value(_) => HashSet::new(),
             Expr::UnaryMinus(expr) => expr.components(),

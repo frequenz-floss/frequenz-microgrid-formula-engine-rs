@@ -13,7 +13,7 @@ use crate::{error::FormulaError, expression::Expr, parser};
 #[derive(Debug)]
 pub struct FormulaEngine<T> {
     expr: Expr<T>,
-    components: HashSet<usize>,
+    components: HashSet<u64>,
 }
 
 impl<T: FromStr + NumberLike<T> + PartialOrd> FormulaEngine<T>
@@ -30,12 +30,12 @@ where
     }
 
     /// Get the components of the formula.
-    pub fn components(&self) -> &HashSet<usize> {
+    pub fn components(&self) -> &HashSet<u64> {
         &self.components
     }
 
     /// Calculate the result of the formula based on the provided component values.
-    pub fn calculate(&self, values: HashMap<usize, Option<T>>) -> Result<Option<T>, FormulaError> {
+    pub fn calculate(&self, values: HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         self.expr.calculate(&values)
     }
 }
