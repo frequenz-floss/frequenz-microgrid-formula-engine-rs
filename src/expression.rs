@@ -1,12 +1,7 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
-use crate::{
-    error::FormulaError,
-    parser::{Rule, PRATT_PARSER},
-};
-use pest::iterators::Pairs;
-use std::ops::{Add, Div, Mul, Sub};
+use crate::{error::FormulaError, traits::NumberLike};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -26,91 +21,13 @@ pub enum Expr<T> {
         function: Function,
         args: Vec<Expr<T>>,
     },
-    Component(usize),
+    Component(u64),
 }
 
-impl<T: FromStr + Debug> TryFrom<Pairs<'_, Rule>> for Expr<T>
-where
-    <T as FromStr>::Err: Debug,
-{
-    type Error = FormulaError;
+impl<T: FromStr> Expr<T> where <T as FromStr>::Err: Debug {}
 
-    fn try_from(value: Pairs<Rule>) -> Result<Self, Self::Error> {
-        Ok(PRATT_PARSER
-            .map_primary(|primary| match primary.as_rule() {
-                Rule::expr => {
-                    Expr::try_from(primary.into_inner()).unwrap_or_else(|_| Expr::Value(None))
-                }
-                Rule::num => Expr::Value(primary.as_str().parse().ok()),
-                Rule::component => primary
-                    .as_str()
-                    .replace("#", "")
-                    .parse()
-                    .map(Expr::Component)
-                    .unwrap_or_else(|_| Expr::Value(None)),
-                Rule::coalesce => Expr::Function {
-                    function: Function::Coalesce,
-                    args: primary
-                        .into_inner()
-                        .map(|x| {
-                            Expr::try_from(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
-                        })
-                        .collect(),
-                },
-                Rule::min => Expr::Function {
-                    function: Function::Min,
-                    args: primary
-                        .into_inner()
-                        .map(|x| {
-                            Expr::try_from(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
-                        })
-                        .collect(),
-                },
-                Rule::max => Expr::Function {
-                    function: Function::Max,
-                    args: primary
-                        .into_inner()
-                        .map(|x| {
-                            Expr::try_from(Pairs::single(x)).unwrap_or_else(|_| Expr::Value(None))
-                        })
-                        .collect(),
-                },
-                rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
-            })
-            .map_infix(|lhs, op, rhs| Expr::Op {
-                lhs: Box::new(lhs),
-                op: match op.as_rule() {
-                    Rule::add => Op::Add,
-                    Rule::sub => Op::Sub,
-                    Rule::mul => Op::Mul,
-                    Rule::div => Op::Div,
-                    rule => unreachable!("Expr::parse expected operator, found {:?}", rule),
-                },
-                rhs: Box::new(rhs),
-            })
-            .map_prefix(|op, rhs| match op.as_rule() {
-                Rule::unary_minus => Expr::UnaryMinus(Box::new(rhs)),
-                _ => unreachable!(),
-            })
-            .map_postfix(|lhs, op| match op.as_rule() {
-                Rule::EOI => lhs,
-                _ => unreachable!(),
-            })
-            .parse(value))
-    }
-}
-
-impl<
-        T: Copy
-            + Neg<Output = T>
-            + Add<Output = T>
-            + Sub<Output = T>
-            + Mul<Output = T>
-            + Div<Output = T>
-            + PartialOrd,
-    > Expr<T>
-{
-    pub fn calculate(&self, values: &HashMap<usize, Option<T>>) -> Result<Option<T>, FormulaError> {
+impl<T: NumberLike<T> + PartialOrd> Expr<T> {
+    pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
             Expr::Value(value) => *value,
             Expr::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
@@ -128,7 +45,7 @@ impl<
         })
     }
 
-    pub fn components(&self) -> HashSet<usize> {
+    pub fn components(&self) -> HashSet<u64> {
         match self {
             Expr::Value(_) => HashSet::new(),
             Expr::UnaryMinus(expr) => expr.components(),
@@ -155,18 +72,7 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn apply<
-        T: Copy
-            + Neg<Output = T>
-            + Add<Output = T>
-            + Sub<Output = T>
-            + Mul<Output = T>
-            + Div<Output = T>,
-    >(
-        &self,
-        lhs: Option<T>,
-        rhs: Option<T>,
-    ) -> Option<T> {
+    pub fn apply<T: NumberLike<T>>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
         if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
             Some(match self {
                 Op::Add => lhs + rhs,
