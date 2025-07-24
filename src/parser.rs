@@ -45,6 +45,7 @@ where
     PRATT_PARSER
         .map_primary(|primary| {
             Ok(match primary.as_rule() {
+                Rule::none => Expr::Value(None),
                 Rule::expr => parse_to_expr(primary.into_inner())?,
                 Rule::num => primary
                     .as_str()

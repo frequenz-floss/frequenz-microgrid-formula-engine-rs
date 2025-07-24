@@ -84,6 +84,39 @@ impl Sub for OptionW<f32> {
 }
 
 #[test]
+fn test_none_formula() {
+    let fe = FormulaEngine::<f32>::try_new("None").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+
+    let fe = FormulaEngine::<f32>::try_new("2 + None").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("#2 + None").unwrap();
+    assert_eq!(
+        fe.calculate(&HashMap::from([(2, Some(12.))])).unwrap(),
+        None
+    );
+
+    let fe = FormulaEngine::<f32>::try_new("MIN(None, None)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("MAX(None, None)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+
+    let fe = FormulaEngine::<f32>::try_new("MIN(None, 10, -10)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("MAX(None, 10, -10)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(None, 10)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), Some(10.));
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(10, None, 12)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), Some(10.));
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(#2, None, 12)").unwrap();
+    assert_eq!(
+        fe.calculate(&HashMap::from([(2, Some(2.))])).unwrap(),
+        Some(2.)
+    );
+}
+
+#[test]
 fn test_parse_addition() {
     let fe = FormulaEngine::<f32>::try_new("1 + 1").unwrap();
     assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. + 1.);
