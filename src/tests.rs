@@ -320,28 +320,27 @@ fn test_large_microgrid_formula(components: HashMap<u64, Option<f32>>) {
     let expected_result = min(
         OptionW(Some(0.0)),
         coalesce(vec![
-            OptionW(components.get(&4).unwrap().clone())
-                + OptionW(components.get(&3).unwrap().clone()),
-            OptionW(components.get(&2).unwrap().clone()),
+            OptionW(*components.get(&4).unwrap()) + OptionW(*components.get(&3).unwrap()),
+            OptionW(*components.get(&2).unwrap()),
             coalesce(vec![
-                OptionW(components.get(&4).unwrap().clone()),
+                OptionW(*components.get(&4).unwrap()),
                 OptionW(Some(0.0)),
             ]) + coalesce(vec![
-                OptionW(components.get(&3).unwrap().clone()),
+                OptionW(*components.get(&3).unwrap()),
                 OptionW(Some(0.0)),
             ]),
         ]),
     ) + min(
         OptionW(Some(0.0)),
         coalesce(vec![
-            OptionW(components.get(&6).unwrap().clone()),
-            OptionW(components.get(&5).unwrap().clone()),
+            OptionW(*components.get(&6).unwrap()),
+            OptionW(*components.get(&5).unwrap()),
             OptionW(Some(0.0)),
         ]),
     ) + min(
         OptionW(Some(0.0)),
         coalesce(vec![
-            OptionW(components.get(&7).unwrap().clone()),
+            OptionW(*components.get(&7).unwrap()),
             OptionW(Some(0.0)),
         ]),
     );
@@ -378,35 +377,34 @@ fn test_large_microgrid_formula_2(components: HashMap<u64, Option<f32>>) {
 
     let expected_result = max(
         OptionW(Some(0.0)),
-        OptionW(components.get(&1).unwrap().clone())
+        OptionW(*components.get(&1).unwrap())
             - coalesce(vec![
-                OptionW(components.get(&2).unwrap().clone()),
-                OptionW(components.get(&3).unwrap().clone()),
+                OptionW(*components.get(&2).unwrap()),
+                OptionW(*components.get(&3).unwrap()),
                 OptionW(Some(0.0)),
             ])
             - coalesce(vec![
-                OptionW(components.get(&5).unwrap().clone()),
+                OptionW(*components.get(&5).unwrap()),
                 coalesce(vec![
-                    OptionW(components.get(&7).unwrap().clone()),
+                    OptionW(*components.get(&7).unwrap()),
                     OptionW(Some(0.0)),
                 ]) + coalesce(vec![
-                    OptionW(components.get(&6).unwrap().clone()),
+                    OptionW(*components.get(&6).unwrap()),
                     OptionW(Some(0.0)),
                 ]),
             ]),
     ) + coalesce(vec![
         max(
             OptionW(Some(0.0)),
-            OptionW(components.get(&2).unwrap().clone())
-                - OptionW(components.get(&3).unwrap().clone()),
+            OptionW(*components.get(&2).unwrap()) - OptionW(*components.get(&3).unwrap()),
         ),
         OptionW(Some(0.0)),
     ]) + coalesce(vec![
         max(
             OptionW(Some(0.0)),
-            OptionW(components.get(&5).unwrap().clone())
-                - OptionW(components.get(&6).unwrap().clone())
-                - OptionW(components.get(&7).unwrap().clone()),
+            OptionW(*components.get(&5).unwrap())
+                - OptionW(*components.get(&6).unwrap())
+                - OptionW(*components.get(&7).unwrap()),
         ),
         OptionW(Some(0.0)),
     ]);
