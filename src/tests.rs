@@ -22,9 +22,7 @@ where
                 Some(b)
             }
         }
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
+        _ => None,
     })
 }
 
@@ -40,9 +38,7 @@ where
                 Some(b)
             }
         }
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
+        _ => None,
     })
 }
 
@@ -224,9 +220,8 @@ fn test_function_min_none() {
     let fe = FormulaEngine::<f32>::try_new("MIN(#0, #1,#2)").unwrap();
     assert_eq!(
         fe.calculate(&HashMap::from([(0, None), (1, Some(1.)), (2, Some(2.))]))
-            .unwrap()
             .unwrap(),
-        1.
+        None
     );
 }
 
@@ -250,9 +245,8 @@ fn test_function_max_none() {
     let fe = FormulaEngine::<f32>::try_new("MAX(#0, #1,#2)").unwrap();
     assert_eq!(
         fe.calculate(&HashMap::from([(0, None), (1, None), (2, Some(2.))]))
-            .unwrap()
             .unwrap(),
-        2.
+        None
     );
 }
 
