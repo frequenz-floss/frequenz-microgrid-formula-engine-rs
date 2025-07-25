@@ -18,7 +18,7 @@ op = _{ add | sub | mul | div }
     div = { "/" }
 
 func = _{ coalesce | min | max }
-list = _{ expr ~ ("," ~ expr)+ }
+list = _{ expr ~ ("," ~ expr)* }
     coalesce = { "COALESCE(" ~ list ~ ")" }
     min = { "MIN(" ~ list ~ ")" }
     max = { "MAX(" ~ list ~ ")" }

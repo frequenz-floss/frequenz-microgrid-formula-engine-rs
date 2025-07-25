@@ -202,6 +202,8 @@ fn test_function_coalesce() {
             .unwrap(),
         1.
     );
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(#0)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::from([(0, None)])).unwrap(), None);
 }
 
 #[test]
@@ -217,6 +219,12 @@ fn test_function_min() {
         .unwrap(),
         1.
     );
+    let fe = FormulaEngine::<f32>::try_new("MIN(#1)").unwrap();
+    assert_eq!(
+        fe.calculate(&HashMap::from([(1, Some(1.)),])).unwrap(),
+        Some(1.)
+    );
+    assert_eq!(fe.calculate(&HashMap::from([(1, None),])).unwrap(), None);
 }
 
 #[test]
@@ -243,6 +251,12 @@ fn test_function_max() {
         .unwrap(),
         3.
     );
+    let fe = FormulaEngine::<f32>::try_new("MAX(#1)").unwrap();
+    assert_eq!(
+        fe.calculate(&HashMap::from([(1, Some(1.)),])).unwrap(),
+        Some(1.)
+    );
+    assert_eq!(fe.calculate(&HashMap::from([(1, None),])).unwrap(), None);
 }
 
 #[test]
