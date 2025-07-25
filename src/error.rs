@@ -17,12 +17,12 @@ impl Error for FormulaError {}
 
 impl From<pest::error::Error<Rule>> for FormulaError {
     fn from(err: pest::error::Error<Rule>) -> Self {
-        FormulaError(format!("{}", err))
+        FormulaError(format!("{err}"))
     }
 }
 
 impl From<std::num::ParseFloatError> for FormulaError {
     fn from(err: std::num::ParseFloatError) -> Self {
-        FormulaError(format!("{}", err))
+        FormulaError(format!("{err}"))
     }
 }

@@ -101,25 +101,29 @@ impl Function {
                 .copied()
                 .find(Option::is_some)
                 .unwrap_or_default(),
-            // Option::min defines None as the smallest value, so we need to handle this case separately
-            Function::Min => values.iter().copied().fold(None, |acc, x| match (acc, x) {
-                (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
-                    Some(std::cmp::Ordering::Less) => Some(acc),
-                    _ => Some(x),
-                },
-                (Some(acc), None) => Some(acc),
-                (None, Some(x)) => Some(x),
-                (None, None) => None,
-            }),
-            Function::Max => values.iter().copied().fold(None, |acc, x| match (acc, x) {
-                (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
-                    Some(std::cmp::Ordering::Greater) => Some(acc),
-                    _ => Some(x),
-                },
-                (Some(acc), None) => Some(acc),
-                (None, Some(x)) => Some(x),
-                (None, None) => None,
-            }),
+            // If any of the values is `None`, return `None` for Min/Max.
+            Function::Min => values
+                .iter()
+                .copied()
+                .reduce(|acc, x| match (acc, x) {
+                    (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
+                        Some(std::cmp::Ordering::Less) => Some(acc),
+                        _ => Some(x),
+                    },
+                    _ => None,
+                })
+                .unwrap_or_default(),
+            Function::Max => values
+                .iter()
+                .copied()
+                .reduce(|acc, x| match (acc, x) {
+                    (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
+                        Some(std::cmp::Ordering::Greater) => Some(acc),
+                        _ => Some(x),
+                    },
+                    _ => None,
+                })
+                .unwrap_or_default(),
         }
     }
 }

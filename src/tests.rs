@@ -22,9 +22,7 @@ where
                 Some(b)
             }
         }
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
+        _ => None,
     })
 }
 
@@ -40,9 +38,7 @@ where
                 Some(b)
             }
         }
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
+        _ => None,
     })
 }
 
@@ -85,6 +81,39 @@ impl Sub for OptionW<f32> {
             _ => None,
         })
     }
+}
+
+#[test]
+fn test_none_formula() {
+    let fe = FormulaEngine::<f32>::try_new("None").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+
+    let fe = FormulaEngine::<f32>::try_new("2 + None").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("#2 + None").unwrap();
+    assert_eq!(
+        fe.calculate(&HashMap::from([(2, Some(12.))])).unwrap(),
+        None
+    );
+
+    let fe = FormulaEngine::<f32>::try_new("MIN(None, None)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("MAX(None, None)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+
+    let fe = FormulaEngine::<f32>::try_new("MIN(None, 10, -10)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("MAX(None, 10, -10)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(None, 10)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), Some(10.));
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(10, None, 12)").unwrap();
+    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), Some(10.));
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(#2, None, 12)").unwrap();
+    assert_eq!(
+        fe.calculate(&HashMap::from([(2, Some(2.))])).unwrap(),
+        Some(2.)
+    );
 }
 
 #[test]
@@ -232,9 +261,8 @@ fn test_function_min_none() {
     let fe = FormulaEngine::<f32>::try_new("MIN(#0, #1,#2)").unwrap();
     assert_eq!(
         fe.calculate(&HashMap::from([(0, None), (1, Some(1.)), (2, Some(2.))]))
-            .unwrap()
             .unwrap(),
-        1.
+        None
     );
 }
 
@@ -264,9 +292,8 @@ fn test_function_max_none() {
     let fe = FormulaEngine::<f32>::try_new("MAX(#0, #1,#2)").unwrap();
     assert_eq!(
         fe.calculate(&HashMap::from([(0, None), (1, None), (2, Some(2.))]))
-            .unwrap()
             .unwrap(),
-        2.
+        None
     );
 }
 
@@ -307,28 +334,27 @@ fn test_large_microgrid_formula(components: HashMap<u64, Option<f32>>) {
     let expected_result = min(
         OptionW(Some(0.0)),
         coalesce(vec![
-            OptionW(components.get(&4).unwrap().clone())
-                + OptionW(components.get(&3).unwrap().clone()),
-            OptionW(components.get(&2).unwrap().clone()),
+            OptionW(*components.get(&4).unwrap()) + OptionW(*components.get(&3).unwrap()),
+            OptionW(*components.get(&2).unwrap()),
             coalesce(vec![
-                OptionW(components.get(&4).unwrap().clone()),
+                OptionW(*components.get(&4).unwrap()),
                 OptionW(Some(0.0)),
             ]) + coalesce(vec![
-                OptionW(components.get(&3).unwrap().clone()),
+                OptionW(*components.get(&3).unwrap()),
                 OptionW(Some(0.0)),
             ]),
         ]),
     ) + min(
         OptionW(Some(0.0)),
         coalesce(vec![
-            OptionW(components.get(&6).unwrap().clone()),
-            OptionW(components.get(&5).unwrap().clone()),
+            OptionW(*components.get(&6).unwrap()),
+            OptionW(*components.get(&5).unwrap()),
             OptionW(Some(0.0)),
         ]),
     ) + min(
         OptionW(Some(0.0)),
         coalesce(vec![
-            OptionW(components.get(&7).unwrap().clone()),
+            OptionW(*components.get(&7).unwrap()),
             OptionW(Some(0.0)),
         ]),
     );
@@ -365,35 +391,34 @@ fn test_large_microgrid_formula_2(components: HashMap<u64, Option<f32>>) {
 
     let expected_result = max(
         OptionW(Some(0.0)),
-        OptionW(components.get(&1).unwrap().clone())
+        OptionW(*components.get(&1).unwrap())
             - coalesce(vec![
-                OptionW(components.get(&2).unwrap().clone()),
-                OptionW(components.get(&3).unwrap().clone()),
+                OptionW(*components.get(&2).unwrap()),
+                OptionW(*components.get(&3).unwrap()),
                 OptionW(Some(0.0)),
             ])
             - coalesce(vec![
-                OptionW(components.get(&5).unwrap().clone()),
+                OptionW(*components.get(&5).unwrap()),
                 coalesce(vec![
-                    OptionW(components.get(&7).unwrap().clone()),
+                    OptionW(*components.get(&7).unwrap()),
                     OptionW(Some(0.0)),
                 ]) + coalesce(vec![
-                    OptionW(components.get(&6).unwrap().clone()),
+                    OptionW(*components.get(&6).unwrap()),
                     OptionW(Some(0.0)),
                 ]),
             ]),
     ) + coalesce(vec![
         max(
             OptionW(Some(0.0)),
-            OptionW(components.get(&2).unwrap().clone())
-                - OptionW(components.get(&3).unwrap().clone()),
+            OptionW(*components.get(&2).unwrap()) - OptionW(*components.get(&3).unwrap()),
         ),
         OptionW(Some(0.0)),
     ]) + coalesce(vec![
         max(
             OptionW(Some(0.0)),
-            OptionW(components.get(&5).unwrap().clone())
-                - OptionW(components.get(&6).unwrap().clone())
-                - OptionW(components.get(&7).unwrap().clone()),
+            OptionW(*components.get(&5).unwrap())
+                - OptionW(*components.get(&6).unwrap())
+                - OptionW(*components.get(&7).unwrap()),
         ),
         OptionW(Some(0.0)),
     ]);

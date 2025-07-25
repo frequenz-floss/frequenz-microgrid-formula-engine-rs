@@ -45,18 +45,19 @@ where
     PRATT_PARSER
         .map_primary(|primary| {
             Ok(match primary.as_rule() {
+                Rule::none => Expr::Value(None),
                 Rule::expr => parse_to_expr(primary.into_inner())?,
                 Rule::num => primary
                     .as_str()
                     .parse()
                     .map(|num| Expr::Value(Some(num)))
-                    .map_err(|e| FormulaError(format!("Invalid number: {:?}", e)))?,
+                    .map_err(|e| FormulaError(format!("Invalid number: {e:?}")))?,
                 Rule::component => primary
                     .as_str()
                     .replace("#", "")
                     .parse()
                     .map(Expr::Component)
-                    .map_err(|e| FormulaError(format!("Invalid component id: {:?}", e)))?,
+                    .map_err(|e| FormulaError(format!("Invalid component id: {e:?}")))?,
                 Rule::coalesce => Expr::Function {
                     function: Function::Coalesce,
                     args: primary
@@ -80,8 +81,7 @@ where
                 },
                 rule => {
                     return Err(FormulaError(format!(
-                        "Expr::parse expected atom, found {:?}",
-                        rule
+                        "Expr::parse expected atom, found {rule:?}"
                     )))
                 }
             })
@@ -101,8 +101,7 @@ where
                         Rule::div => Op::Div,
                         rule => {
                             return Err(FormulaError(format!(
-                                "Expr::parse expected operator, found {:?}",
-                                rule
+                                "Expr::parse expected operator, found {rule:?}"
                             )))
                         }
                     },
@@ -121,15 +120,13 @@ where
                 }
             }
             rule => Err(FormulaError(format!(
-                "Expr::parse unexpected prefix rule: {:?}",
-                rule
+                "Expr::parse unexpected prefix rule: {rule:?}"
             ))),
         })
         .map_postfix(|lhs, op| match op.as_rule() {
             Rule::EOI => lhs,
             rule => Err(FormulaError(format!(
-                "Expr::parse unexpected postfix rule: {:?}",
-                rule
+                "Expr::parse unexpected postfix rule: {rule:?}"
             ))),
         })
         .parse(pairs)

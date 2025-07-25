@@ -6,9 +6,10 @@ formula = _{ SOI ~ expr ~ EOI }
 
 num = @{ (ASCII_DIGIT | "." )+ }
 component = @{ "#" ~ ASCII_DIGIT+ }
+none = { "None" }
 
 unary_minus = { "-" }
-primary = _{ num | component | "(" ~ expr ~ ")" | func }
+primary = _{ num | component | "(" ~ expr ~ ")" | func | none }
 atom = _{ unary_minus? ~ primary }
 
 op = _{ add | sub | mul | div }
