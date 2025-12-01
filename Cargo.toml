@@ -2,6 +2,13 @@
 name = "frequenz-microgrid-formula-engine"
 version = "0.1.0"
 edition = "2021"
+description = "A library for applying formulas over resampled microgrid telemetry."
+repository = "https://github.com/frequenz-floss/frequenz-microgrid-formula-engine-rs"
+license = "MIT"
+
+[lib]
+name = "frequenz_microgrid_formula_engine"
+path = "src/lib.rs"
 
 [dependencies]
 pest = "2.6"
