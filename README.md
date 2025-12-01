@@ -1,5 +1,8 @@
 # frequenz-microgrid-formula-engine-rs
 
+[<img alt="docs.rs" src="https://img.shields.io/docsrs/frequenz-microgrid-formula-engine">](https://docs.rs/frequenz-microgrid-formula-engine)
+[<img alt="Crates.io" src="https://img.shields.io/crates/v/frequenz-microgrid-formula-engine">](https://crates.io/crates/frequenz-microgrid-formula-engine)
+
 A library to create formulas over streamed data, primarily used for calculating and processing values within microgrid applications.
 
 ## Usage
