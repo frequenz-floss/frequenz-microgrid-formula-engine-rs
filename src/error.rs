@@ -59,10 +59,10 @@ impl Display for FormulaError {
             }
             FormulaError::TooDeep { limit } => write!(f, "Formula is deeper than {limit} levels"),
             FormulaError::Arity { function, args: 0 } => {
-                write!(f, "{function:?} requires at least one argument")
+                write!(f, "{function} requires at least one argument")
             }
             FormulaError::Arity { function, .. } => {
-                write!(f, "{function:?} takes exactly one argument")
+                write!(f, "{function} takes exactly one argument")
             }
             FormulaError::Internal(message) => write!(f, "internal parser error: {message}"),
         }

@@ -11,6 +11,7 @@ use std::{
 use crate::formula::Formula;
 use crate::{parse, FormulaError, Reading};
 
+mod display;
 mod evaluate;
 mod functions;
 mod keys;

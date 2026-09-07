@@ -8,7 +8,16 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::ops::Neg;
 
-#[derive(Debug)]
+/// `Display` round-trips through `str::parse` for `K = u64` keys and finite,
+/// non-negative constants: `expr.to_string().parse() == Ok(expr)`.
+/// It does not round-trip when:
+/// - `K` is not `u64` — parsing always yields `Formula<T, u64>`, so the result
+///   is a different type, and a key that does not render as `#` followed by
+///   digits does not parse at all.
+/// - a constant is `NaN` or infinite — these do not parse back.
+/// - a constant is negative — `Constant(Some(-2.0))` renders as `-2`, which
+///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Formula<T, K = u64> {
     Constant(Option<T>),
     Neg(Box<Formula<T, K>>),
@@ -107,7 +116,7 @@ impl<T: Real, K> Formula<T, K> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
     Add,
     Sub,

@@ -30,6 +30,7 @@ fn main() -> Result<(), FormulaError> {
 ```
 */
 
+mod display;
 mod error;
 mod formula;
 mod parser;
