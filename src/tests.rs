@@ -8,10 +8,11 @@ use std::{
     vec,
 };
 
-use crate::Formula;
-use crate::Reading;
+use crate::formula::Formula;
+use crate::{parse, Reading};
 
 mod evaluate;
+mod keys;
 mod value_source;
 
 fn max<T>(a: OptionW<T>, b: OptionW<T>) -> OptionW<T>
@@ -85,6 +86,11 @@ impl Sub for OptionW<f32> {
             _ => None,
         })
     }
+}
+
+/// Parses `formula` with `f32` constants and `u64` keys.
+fn parsed(formula: &str) -> Formula<f32> {
+    parse::<f32>(formula).unwrap()
 }
 
 /// Parses `formula` and evaluates it over a map built from `values`.

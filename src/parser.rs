@@ -35,7 +35,7 @@ where
     parse_to_formula(pairs)
 }
 
-/// Parse a formula string into an expression tree.
+/// Parses a formula string into a formula with `u64` component keys.
 impl<T> FromStr for Formula<T>
 where
     T: FromStr + Real,

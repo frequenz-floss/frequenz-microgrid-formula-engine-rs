@@ -5,32 +5,93 @@ use crate::error::FormulaError;
 use crate::value_source::{Reading, ValueSource};
 use num_traits::real::Real;
 use std::collections::HashSet;
+use std::hash::Hash;
 use std::ops::Neg;
 
 #[derive(Debug)]
-pub enum Formula<T> {
+pub enum Formula<T, K = u64> {
     Constant(Option<T>),
-    UnaryMinus(Box<Formula<T>>),
+    UnaryMinus(Box<Formula<T, K>>),
     Op {
-        lhs: Box<Formula<T>>,
+        lhs: Box<Formula<T, K>>,
         op: Op,
-        rhs: Box<Formula<T>>,
+        rhs: Box<Formula<T, K>>,
     },
     Function {
         function: Function,
-        args: Vec<Formula<T>>,
+        args: Vec<Formula<T, K>>,
     },
-    Component(u64),
+    Component(K),
 }
 
-impl<T: Real> Formula<T> {
+impl<T, K> Formula<T, K> {
+    /// The set of component keys the expression references.
+    pub fn components(&self) -> HashSet<K>
+    where
+        K: Clone + Eq + Hash,
+    {
+        let mut components = HashSet::new();
+        self.collect_components(&mut components);
+        components
+    }
+
+    fn collect_components(&self, into: &mut HashSet<K>)
+    where
+        K: Clone + Eq + Hash,
+    {
+        match self {
+            Formula::Constant(_) => {}
+            Formula::Component(key) => {
+                into.insert(key.clone());
+            }
+            Formula::UnaryMinus(expr) => expr.collect_components(into),
+            Formula::Op { lhs, rhs, .. } => {
+                lhs.collect_components(into);
+                rhs.collect_components(into);
+            }
+            Formula::Function { args, .. } => {
+                for arg in args {
+                    arg.collect_components(into);
+                }
+            }
+        }
+    }
+
+    /// Replaces every component key with `f(key)`, leaving constants and
+    /// structure untouched.
+    pub fn map_components<K2>(self, f: impl Fn(K) -> K2) -> Formula<T, K2> {
+        self.map_components_ref(&f)
+    }
+
+    fn map_components_ref<K2>(self, f: &impl Fn(K) -> K2) -> Formula<T, K2> {
+        match self {
+            Formula::Constant(value) => Formula::Constant(value),
+            Formula::Component(key) => Formula::Component(f(key)),
+            Formula::UnaryMinus(expr) => Formula::UnaryMinus(Box::new(expr.map_components_ref(f))),
+            Formula::Op { lhs, op, rhs } => Formula::Op {
+                lhs: Box::new(lhs.map_components_ref(f)),
+                op,
+                rhs: Box::new(rhs.map_components_ref(f)),
+            },
+            Formula::Function { function, args } => Formula::Function {
+                function,
+                args: args
+                    .into_iter()
+                    .map(|arg| arg.map_components_ref(f))
+                    .collect(),
+            },
+        }
+    }
+}
+
+impl<T: Real, K> Formula<T, K> {
     /// Evaluates the formula, pulling component values from `source`.
     ///
     /// A `HashMap` from keys to `Option<T>` is a source; a key absent from
     /// the map reads as [`Reading::Unknown`].
     pub fn evaluate(
         &self,
-        source: &mut impl ValueSource<T, u64>,
+        source: &mut impl ValueSource<T, K>,
     ) -> Result<Reading<T>, FormulaError> {
         Ok(match self {
             Formula::Constant(value) => Reading::Known(*value),
@@ -43,23 +104,6 @@ impl<T: Real> Formula<T> {
             }
             Formula::Function { function, args } => function.evaluate(args, source)?,
         })
-    }
-
-    pub fn components(&self) -> HashSet<u64> {
-        match self {
-            Formula::Constant(_) => HashSet::new(),
-            Formula::UnaryMinus(expr) => expr.components(),
-            Formula::Op { lhs, rhs, .. } => {
-                let mut components = lhs.components();
-                components.extend(rhs.components());
-                components
-            }
-            Formula::Function { args, .. } => args
-                .iter()
-                .map(Formula::components)
-                .fold(HashSet::new(), |acc, x| acc.union(&x).copied().collect()),
-            Formula::Component(i) => HashSet::from([*i]),
-        }
     }
 }
 
@@ -95,10 +139,10 @@ pub enum Function {
 impl Function {
     /// Evaluates a function call. `COALESCE` reads its arguments lazily;
     /// every other function reads all of them first.
-    pub(crate) fn evaluate<T: Real>(
+    pub(crate) fn evaluate<T: Real, K>(
         &self,
-        args: &[Formula<T>],
-        source: &mut impl ValueSource<T, u64>,
+        args: &[Formula<T, K>],
+        source: &mut impl ValueSource<T, K>,
     ) -> Result<Reading<T>, FormulaError> {
         if args.is_empty() {
             return Err(FormulaError::Arity {
