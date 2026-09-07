@@ -36,10 +36,10 @@ fn main() -> Result<(), FormulaError> {
 mod error;
 mod formula;
 mod parser;
-pub mod traits;
 
 pub use error::FormulaError;
 pub use formula::Formula;
+pub use num_traits::real::Real;
 #[cfg(test)]
 pub(crate) use parser::parse;
 

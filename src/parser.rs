@@ -7,8 +7,8 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use crate::formula::{Formula, Function, Op};
-use crate::traits::NumberLike;
 use crate::FormulaError;
+use num_traits::real::Real;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -29,7 +29,7 @@ lazy_static::lazy_static! {
 
 pub(crate) fn parse<T>(formula: &str) -> Result<Formula<T>, FormulaError>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + Real,
     <T as FromStr>::Err: Debug,
 {
     let pairs = FormulaParser::parse(Rule::formula, formula)?;
@@ -39,7 +39,7 @@ where
 /// Parse a formula string into an expression tree.
 impl<T> FromStr for Formula<T>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + Real,
     <T as FromStr>::Err: Debug,
 {
     type Err = FormulaError;
@@ -51,7 +51,7 @@ where
 
 fn parse_to_formula<T>(pairs: Pairs<Rule>) -> Result<Formula<T>, FormulaError>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + Real,
     <T as FromStr>::Err: Debug,
 {
     PRATT_PARSER

@@ -1,12 +1,10 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
-use crate::{error::FormulaError, traits::NumberLike};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-};
-use std::{ops::Neg, str::FromStr};
+use crate::error::FormulaError;
+use num_traits::real::Real;
+use std::collections::{HashMap, HashSet};
+use std::ops::Neg;
 
 #[derive(Debug)]
 pub enum Formula<T> {
@@ -24,9 +22,7 @@ pub enum Formula<T> {
     Component(u64),
 }
 
-impl<T: FromStr> Formula<T> where <T as FromStr>::Err: Debug {}
-
-impl<T: NumberLike<T> + PartialOrd> Formula<T> {
+impl<T: Real> Formula<T> {
     pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
             Formula::Constant(value) => *value,
@@ -74,7 +70,7 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn apply<T: NumberLike<T>>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
+    pub fn apply<T: Real>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
         if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
             Some(match self {
                 Op::Add => lhs + rhs,
