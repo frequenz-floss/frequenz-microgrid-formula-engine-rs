@@ -10,6 +10,8 @@ use std::{
 
 use crate::formula_engine::FormulaEngine;
 
+mod value_source;
+
 fn max<T>(a: OptionW<T>, b: OptionW<T>) -> OptionW<T>
 where
     T: PartialOrd,

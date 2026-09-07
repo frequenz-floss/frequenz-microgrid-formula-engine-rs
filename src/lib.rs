@@ -38,9 +38,11 @@ mod expression;
 mod formula_engine;
 mod parser;
 pub mod traits;
+mod value_source;
 
 pub use error::FormulaError;
 pub use formula_engine::FormulaEngine;
+pub use value_source::{Reading, ValueSource};
 
 #[cfg(test)]
 mod tests;
