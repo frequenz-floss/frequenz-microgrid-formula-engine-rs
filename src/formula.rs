@@ -8,6 +8,18 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::ops::Neg;
 
+/// An expression tree over constants, component references, operators and
+/// functions.
+///
+/// `Constant(None)` is the known-missing constant written as `None` in the
+/// grammar: it means the value is decided to be absent, which is different
+/// from [`Reading::Unknown`](crate::Reading::Unknown), meaning the value
+/// is not known yet.
+///
+/// Every walk over the tree recurses once per level. Parsing bounds the
+/// depth by [`MAX_DEPTH`](crate::MAX_DEPTH); a hand-built formula
+/// deeper than that may overflow the stack.
+///
 /// `Display` round-trips through `str::parse` for `K = u64` keys and finite,
 /// non-negative constants: `expr.to_string().parse() == Ok(expr)`.
 /// It does not round-trip when:
@@ -19,17 +31,27 @@ use std::ops::Neg;
 ///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Formula<T, K = u64> {
+    /// A constant, or `None` for the known-missing constant.
     Constant(Option<T>),
+    /// The arithmetic negation of an expression (`-expr`).
     Neg(Box<Formula<T, K>>),
+    /// A binary operator applied to two operands.
     Op {
+        /// The left-hand operand.
         lhs: Box<Formula<T, K>>,
+        /// The operator.
         op: Op,
+        /// The right-hand operand.
         rhs: Box<Formula<T, K>>,
     },
+    /// A function call over one or more argument expressions.
     Function {
+        /// The function being called.
         function: Function,
+        /// The argument expressions.
         args: Vec<Formula<T, K>>,
     },
+    /// A reference to a component's value, keyed by `K`.
     Component(K),
 }
 
@@ -216,12 +238,17 @@ impl<T: Real, K> Formula<T, K> {
     }
 }
 
+/// A binary arithmetic operator.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
+    /// Addition.
     Add,
+    /// Subtraction.
     Sub,
+    /// Multiplication.
     Mul,
+    /// Division. Division by zero yields `None` rather than infinity.
     Div,
 }
 
@@ -239,13 +266,27 @@ impl Op {
     }
 }
 
+/// A function call in an expression.
+///
+/// All functions take one or more arguments, except [`Function::Sqrt`],
+/// which takes exactly one.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
+    /// Returns the first argument with a value: an argument that is
+    /// known-missing is skipped, and an unknown argument stops evaluation
+    /// (see [`crate`] for the full semantics).
     Coalesce,
+    /// The smallest of its arguments.
     Min,
+    /// The largest of its arguments.
     Max,
+    /// The arithmetic mean of the arguments that have a value. Known-missing
+    /// arguments are skipped; when none has a value the result is `None`.
+    /// An unknown argument makes the result unknown.
     Avg,
+    /// The square root of its single argument. A negative or NaN argument
+    /// yields `None`.
     Sqrt,
 }
 

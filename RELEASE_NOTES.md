@@ -20,5 +20,6 @@ Formulas are now public and buildable in code, component keys are generic, and e
 - `Formula::map_components` re-keys every component leaf.
 - `Formula` implements `Display`, producing a formula string that re-parses to an equal expression, for `u64` keys and finite, non-negative constants.
 - `Reading::Unknown` for values that are not known yet. `COALESCE` stops at an unknown argument instead of reading past it, and reads only as far as the first present value, so a `ValueSource` can observe exactly which components an evaluation needed.
+- `Reading::map` and `Reading::and_then` apply a function to a present value, leaving `None` and `Unknown` untouched. `Reading::zip` pairs two readings: `Unknown` if either is, otherwise `None` if either is.
 - New function `AVG(...)`: the mean of the arguments that have a value, or `None` when none has.
 - New function `SQRT(x)`.

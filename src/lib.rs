@@ -1,6 +1,8 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
+#![deny(missing_docs)]
+
 /*!
 # frequenz-microgrid-formula-engine
 
