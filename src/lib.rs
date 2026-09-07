@@ -36,12 +36,14 @@ fn main() -> Result<(), FormulaError> {
 mod error;
 mod formula;
 mod parser;
+mod value_source;
 
 pub use error::FormulaError;
 pub use formula::Formula;
 pub use num_traits::real::Real;
 #[cfg(test)]
 pub(crate) use parser::parse;
+pub use value_source::{Reading, ValueSource};
 
 #[cfg(test)]
 mod tests;

@@ -8,6 +8,8 @@ use std::{
     vec,
 };
 
+mod value_source;
+
 fn max<T>(a: OptionW<T>, b: OptionW<T>) -> OptionW<T>
 where
     T: PartialOrd,
