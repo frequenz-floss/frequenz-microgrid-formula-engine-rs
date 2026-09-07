@@ -27,8 +27,8 @@ lazy_static::lazy_static! {
     };
 }
 
-/// Parse a formula string into an expression tree.
-pub(crate) fn parse<T>(formula: &str) -> Result<Expr<T>, FormulaError>
+/// Parses a formula string into an expression with u64 component keys.
+pub fn parse<T>(formula: &str) -> Result<Expr<T>, FormulaError>
 where
     T: FromStr + NumberLike,
     <T as FromStr>::Err: Debug,
