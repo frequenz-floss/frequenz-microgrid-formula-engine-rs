@@ -16,7 +16,7 @@ pub struct FormulaEngine<T> {
     components: HashSet<u64>,
 }
 
-impl<T: FromStr + NumberLike<T> + PartialOrd> FormulaEngine<T>
+impl<T: FromStr + NumberLike> FormulaEngine<T>
 where
     <T as FromStr>::Err: Debug,
 {

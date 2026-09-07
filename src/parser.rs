@@ -30,7 +30,7 @@ lazy_static::lazy_static! {
 /// Parse a formula string into an expression tree.
 pub(crate) fn parse<T>(formula: &str) -> Result<Expr<T>, FormulaError>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + NumberLike,
     <T as FromStr>::Err: Debug,
 {
     let pairs = FormulaParser::parse(Rule::formula, formula)?;
@@ -39,7 +39,7 @@ where
 
 fn parse_to_expr<T>(pairs: Pairs<Rule>) -> Result<Expr<T>, FormulaError>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + NumberLike,
     <T as FromStr>::Err: Debug,
 {
     PRATT_PARSER

@@ -2,11 +2,8 @@
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
 use crate::{error::FormulaError, traits::NumberLike};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-};
-use std::{ops::Neg, str::FromStr};
+use std::collections::{HashMap, HashSet};
+use std::ops::Neg;
 
 #[derive(Debug)]
 pub enum Expr<T> {
@@ -24,9 +21,7 @@ pub enum Expr<T> {
     Component(u64),
 }
 
-impl<T: FromStr> Expr<T> where <T as FromStr>::Err: Debug {}
-
-impl<T: NumberLike<T> + PartialOrd> Expr<T> {
+impl<T: NumberLike> Expr<T> {
     pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
             Expr::Value(value) => *value,
@@ -72,7 +67,7 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn apply<T: NumberLike<T>>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
+    pub fn apply<T: NumberLike>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
         if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
             Some(match self {
                 Op::Add => lhs + rhs,

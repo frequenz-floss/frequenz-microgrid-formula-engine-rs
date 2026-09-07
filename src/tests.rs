@@ -442,3 +442,14 @@ fn test_large_microgrid_formula_2_fuzz() {
         test_large_microgrid_formula_2(components);
     }
 }
+
+#[test]
+fn test_number_like_f32_and_f64() {
+    use crate::traits::NumberLike;
+    assert_eq!(<f32 as NumberLike>::zero(), 0.0);
+    assert_eq!(<f32 as NumberLike>::from_usize(3), 3.0);
+    assert_eq!(NumberLike::sqrt(9.0_f32), 3.0);
+    assert_eq!(<f64 as NumberLike>::zero(), 0.0);
+    assert_eq!(<f64 as NumberLike>::from_usize(3), 3.0);
+    assert_eq!(NumberLike::sqrt(9.0_f64), 3.0);
+}
