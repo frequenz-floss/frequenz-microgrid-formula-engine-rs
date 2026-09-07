@@ -12,6 +12,7 @@ use crate::formula_engine::FormulaEngine;
 use crate::Reading;
 
 mod builders;
+mod demand;
 mod display;
 mod evaluate;
 mod functions;
