@@ -15,6 +15,7 @@ use std::ops::Neg;
 /// - a constant is `NaN` or infinite — these do not parse back.
 /// - a constant is negative — `Value(Some(-2.0))` renders as `-2`, which
 ///   re-parses as `Neg(Value(2.0))`, not `Value(-2.0)`.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr<T, K = u64> {
     Value(Option<T>),
@@ -89,6 +90,111 @@ impl<T, K> Expr<T, K> {
             },
         }
     }
+
+    /// A constant, `None` for a missing value.
+    pub fn value(value: Option<T>) -> Self {
+        Expr::Value(value)
+    }
+
+    /// A reference to the component with the given key.
+    pub fn component(key: K) -> Self {
+        Expr::Component(key)
+    }
+
+    /// `COALESCE(self, other)`, extending `self` if it is already a coalesce.
+    pub fn coalesce(self, other: Self) -> Self {
+        self.push_or_wrap(Function::Coalesce, other)
+    }
+
+    /// `MIN(self, other)`, extending `self` if it is already a min.
+    pub fn min(self, other: Self) -> Self {
+        self.push_or_wrap(Function::Min, other)
+    }
+
+    /// `MAX(self, other)`, extending `self` if it is already a max.
+    pub fn max(self, other: Self) -> Self {
+        self.push_or_wrap(Function::Max, other)
+    }
+
+    /// `AVG(self, others...)`.
+    pub fn avg(self, others: impl IntoIterator<Item = Self>) -> Self {
+        Expr::Function {
+            function: Function::Avg,
+            args: std::iter::once(self).chain(others).collect(),
+        }
+    }
+
+    /// `SQRT(self)`.
+    pub fn sqrt(self) -> Self {
+        Expr::Function {
+            function: Function::Sqrt,
+            args: vec![self],
+        }
+    }
+
+    fn push_or_wrap(self, function: Function, other: Self) -> Self {
+        match self {
+            Expr::Function {
+                function: existing,
+                mut args,
+            } if existing == function => {
+                args.push(other);
+                Expr::Function { function, args }
+            }
+            first => Expr::Function {
+                function,
+                args: vec![first, other],
+            },
+        }
+    }
+
+    fn binary(self, op: Op, rhs: Self) -> Self {
+        Expr::Op {
+            lhs: Box::new(self),
+            op,
+            rhs: Box::new(rhs),
+        }
+    }
+}
+
+impl<T, K> std::ops::Add for Expr<T, K> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        self.binary(Op::Add, rhs)
+    }
+}
+
+impl<T, K> std::ops::Sub for Expr<T, K> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        self.binary(Op::Sub, rhs)
+    }
+}
+
+impl<T, K> std::ops::Mul for Expr<T, K> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        self.binary(Op::Mul, rhs)
+    }
+}
+
+impl<T, K> std::ops::Div for Expr<T, K> {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self {
+        self.binary(Op::Div, rhs)
+    }
+}
+
+impl<T, K> std::ops::Neg for Expr<T, K> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Expr::Neg(Box::new(self))
+    }
 }
 
 impl<T: NumberLike, K> Expr<T, K> {
@@ -111,6 +217,7 @@ impl<T: NumberLike, K> Expr<T, K> {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
     Add,
@@ -133,6 +240,7 @@ impl Op {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
     Coalesce,

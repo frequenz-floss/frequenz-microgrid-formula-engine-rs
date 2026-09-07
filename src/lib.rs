@@ -39,8 +39,10 @@ pub mod traits;
 mod value_source;
 
 pub use error::FormulaError;
+pub use expression::{Expr, Function, Op};
 pub use formula_engine::FormulaEngine;
 pub use parser::parse;
+pub use traits::NumberLike;
 pub use value_source::{Reading, ValueSource};
 
 #[cfg(test)]
