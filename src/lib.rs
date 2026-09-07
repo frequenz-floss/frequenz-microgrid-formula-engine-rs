@@ -37,7 +37,7 @@ mod parser;
 mod value_source;
 
 pub use error::FormulaError;
-pub use formula::Formula;
+pub use formula::{Formula, Function, Op};
 pub use num_traits::real::Real;
 #[cfg(test)]
 pub(crate) use parser::parse;

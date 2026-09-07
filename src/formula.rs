@@ -91,6 +91,106 @@ impl<T, K> Formula<T, K> {
             },
         }
     }
+
+    /// `COALESCE(self, other)`, merging either side that is already a coalesce.
+    pub fn coalesce(self, other: Self) -> Self {
+        self.merge_or_wrap(Function::Coalesce, other)
+    }
+
+    /// `MIN(self, other)`, merging either side that is already a min.
+    pub fn min(self, other: Self) -> Self {
+        self.merge_or_wrap(Function::Min, other)
+    }
+
+    /// `MAX(self, other)`, merging either side that is already a max.
+    pub fn max(self, other: Self) -> Self {
+        self.merge_or_wrap(Function::Max, other)
+    }
+
+    /// `AVG(self, others...)`.
+    pub fn avg(self, others: impl IntoIterator<Item = Self>) -> Self {
+        Formula::Function {
+            function: Function::Avg,
+            args: std::iter::once(self).chain(others).collect(),
+        }
+    }
+
+    /// `SQRT(self)`.
+    pub fn sqrt(self) -> Self {
+        Formula::Function {
+            function: Function::Sqrt,
+            args: vec![self],
+        }
+    }
+
+    /// Builds `function(self, other)`, merging the arguments of either side
+    /// that is already a call of `function`, so a chain has one shape
+    /// however it was built.
+    fn merge_or_wrap(self, function: Function, other: Self) -> Self {
+        let mut args = self.args_of(function);
+        args.extend(other.args_of(function));
+        Formula::Function { function, args }
+    }
+
+    /// The arguments of `self` if it is a call of `function`, else `self`
+    /// alone.
+    fn args_of(self, function: Function) -> Vec<Self> {
+        match self {
+            Formula::Function {
+                function: existing,
+                args,
+            } if existing == function => args,
+            other => vec![other],
+        }
+    }
+
+    fn binary(self, op: Op, rhs: Self) -> Self {
+        Formula::Op {
+            lhs: Box::new(self),
+            op,
+            rhs: Box::new(rhs),
+        }
+    }
+}
+
+impl<T, K> std::ops::Add for Formula<T, K> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        self.binary(Op::Add, rhs)
+    }
+}
+
+impl<T, K> std::ops::Sub for Formula<T, K> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        self.binary(Op::Sub, rhs)
+    }
+}
+
+impl<T, K> std::ops::Mul for Formula<T, K> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        self.binary(Op::Mul, rhs)
+    }
+}
+
+impl<T, K> std::ops::Div for Formula<T, K> {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self {
+        self.binary(Op::Div, rhs)
+    }
+}
+
+impl<T, K> std::ops::Neg for Formula<T, K> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Formula::Neg(Box::new(self))
+    }
 }
 
 impl<T: Real, K> Formula<T, K> {
@@ -116,6 +216,7 @@ impl<T: Real, K> Formula<T, K> {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
     Add,
@@ -138,6 +239,7 @@ impl Op {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
     Coalesce,
