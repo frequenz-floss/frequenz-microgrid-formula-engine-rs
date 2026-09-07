@@ -8,7 +8,14 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::ops::Neg;
 
-#[derive(Debug)]
+/// `Display` round-trips through [`parse`](crate::parse) for `K = u64` keys
+/// and finite, non-negative constants: `parse(&expr.to_string()) == expr`.
+/// It does not round-trip when:
+/// - `K` is not `u64` — other keys render as `#<key>`, which `parse` rejects.
+/// - a constant is `NaN` or infinite — these do not parse back.
+/// - a constant is negative — `Value(Some(-2.0))` renders as `-2`, which
+///   re-parses as `Neg(Value(2.0))`, not `Value(-2.0)`.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr<T, K = u64> {
     Value(Option<T>),
     Neg(Box<Expr<T, K>>),
@@ -104,7 +111,7 @@ impl<T: NumberLike, K> Expr<T, K> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
     Add,
     Sub,
@@ -126,7 +133,7 @@ impl Op {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
     Coalesce,
     Min,
@@ -145,7 +152,7 @@ impl Function {
     ) -> Result<Reading<T>, FormulaError> {
         if args.is_empty() {
             return Err(FormulaError(format!(
-                "{self:?} requires at least one argument"
+                "{self} requires at least one argument"
             )));
         }
         match self {

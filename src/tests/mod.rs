@@ -11,6 +11,7 @@ use std::{
 use crate::formula_engine::FormulaEngine;
 use crate::Reading;
 
+mod display;
 mod evaluate;
 mod functions;
 mod keys;

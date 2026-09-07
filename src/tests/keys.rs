@@ -13,6 +13,7 @@ fn map_components_retags_component_leaves_only() {
         mapped.components(),
         HashSet::from(["power:1".to_string(), "power:2".to_string()])
     );
+    assert_eq!(mapped.to_string(), "COALESCE(#power:1, 2.5) + #power:2");
 
     let fe = FormulaEngine::from_expr(mapped);
     let mut values = HashMap::from([
