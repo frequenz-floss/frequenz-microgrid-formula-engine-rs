@@ -8,6 +8,14 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::ops::Neg;
 
+/// An expression tree over constants, component references, operators and
+/// functions.
+///
+/// `Value(None)` is the known-missing constant written as `None` in the
+/// grammar: it means the value is decided to be absent, which is different
+/// from [`Reading::Undecided`](crate::Reading::Undecided), meaning the value
+/// is not known yet.
+///
 /// `Display` round-trips through [`parse`](crate::parse) for `K = u64` keys
 /// and finite, non-negative constants: `parse(&expr.to_string()) == expr`.
 /// It does not round-trip when:
@@ -18,17 +26,27 @@ use std::ops::Neg;
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr<T, K = u64> {
+    /// A constant, or `None` for the known-missing constant.
     Value(Option<T>),
+    /// The arithmetic negation of an expression (`-expr`).
     Neg(Box<Expr<T, K>>),
+    /// A binary operator applied to two operands.
     Op {
+        /// The left-hand operand.
         lhs: Box<Expr<T, K>>,
+        /// The operator.
         op: Op,
+        /// The right-hand operand.
         rhs: Box<Expr<T, K>>,
     },
+    /// A function call over one or more argument expressions.
     Function {
+        /// The function being called.
         function: Function,
+        /// The argument expressions.
         args: Vec<Expr<T, K>>,
     },
+    /// A reference to a component's value, keyed by `K`.
     Component(K),
 }
 
@@ -217,12 +235,18 @@ impl<T: NumberLike, K> Expr<T, K> {
     }
 }
 
+/// A binary arithmetic operator.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
+    /// Addition.
     Add,
+    /// Subtraction.
     Sub,
+    /// Multiplication.
     Mul,
+    /// Division. Division by zero yields `Value(None)` rather than
+    /// infinity.
     Div,
 }
 
@@ -240,13 +264,25 @@ impl Op {
     }
 }
 
+/// A function call in an expression.
+///
+/// All functions take one or more arguments, except [`Function::Sqrt`],
+/// which takes exactly one.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
+    /// Returns the first argument with a value: an argument that is
+    /// known-missing is skipped, and an undecided argument stops evaluation
+    /// (see [`crate`] for the full semantics).
     Coalesce,
+    /// The smallest of its arguments.
     Min,
+    /// The largest of its arguments.
     Max,
+    /// The arithmetic mean of its arguments.
     Avg,
+    /// The square root of its single argument. Negative arguments yield
+    /// `Value(None)`.
     Sqrt,
 }
 

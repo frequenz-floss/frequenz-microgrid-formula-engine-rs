@@ -18,4 +18,5 @@ Expressions are now public and buildable in code, component keys are generic, an
 - `Expr` implements `Display`, producing a formula string that re-parses to an equal expression, for `u64` keys and finite, non-negative constants.
 - `FormulaEngine::from_expr` and `FormulaEngine::expr`.
 - `Reading::Undecided` for values that are not known yet. `COALESCE` stops at an undecided argument instead of reading past it, and reads only as far as the first present value, so a `ValueSource` can observe exactly which components an evaluation needed.
+- `Reading::map` and `Reading::and_then` apply a function to a present value, leaving `None` and `Undecided` untouched. `Reading::zip` pairs two readings: `Undecided` if either is, otherwise `None` if either is.
 - New functions `AVG(...)` and `SQRT(x)`.
