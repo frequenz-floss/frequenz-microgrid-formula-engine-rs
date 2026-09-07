@@ -2,29 +2,46 @@
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
 /*!
-# frequenz-formula-engine-rs
+# frequenz-microgrid-formula-engine
 
-A library to create formulas over streamed data
+A synchronous evaluator for formulas over microgrid component values.
 
-## Usage
+## Formulas
 
-A [`Formula`] is parsed from a string with [`FromStr`](std::str::FromStr).
-Such a formula can contain component placeholders, which are represented by `#`
-followed by a number.
+A [`Formula`] is built either by parsing a string ([`FromStr`](std::str::FromStr)), where
+component placeholders are written `#` followed by a number, or in code
+with the builder methods and `std::ops` operators. Component keys are
+`u64` when parsed; [`Formula::map_components`] retags them with any key type.
 
-To evaluate the formula, provide a [`ValueSource`]; a `HashMap<u64,
-Option<T>>` is one, where `None` is a missing value and an absent key is
-an unknown one. The result is a [`Reading`].
+## Evaluation
+
+A [`Formula`] evaluates against values pulled from a [`ValueSource`].
+Each lookup is a [`Reading`]: a known value, a known-missing `None`, or
+`Unknown` when the value is not known yet. `COALESCE` returns the first
+present value, moves past `None`, and stops at `Unknown`; every other
+node reads all its operands and yields `Unknown` if any is, else `None`
+if any is. The exception is `AVG`, which averages the operands that have
+a value and yields `None` only when none has; an unknown operand still
+makes it `Unknown`.
+
+A `HashMap<K, Option<T>>` is a `ValueSource` in which an absent key reads
+as `Unknown`.
 
 ```rust
 use frequenz_microgrid_formula_engine::{Formula, FormulaError, Reading};
 use std::collections::HashMap;
 
 fn main() -> Result<(), FormulaError> {
-    let fe: Formula<f32> = "#0 + #1".parse()?;
-    assert_eq!(fe.components(), [0, 1].into_iter().collect());
-    let mut values = HashMap::from([(0, Some(1.)), (1, Some(2.))]);
-    assert_eq!(fe.evaluate(&mut values)?, Reading::Known(Some(3.0)));
+    let fe: Formula<f32> = "COALESCE(#0, #1 + #2)".parse()?;
+
+    let mut values = HashMap::from([(0, Some(1.))]);
+    assert_eq!(fe.evaluate(&mut values)?, Reading::Known(Some(1.0)));
+
+    let mut values = HashMap::from([(0, None), (1, Some(2.)), (2, Some(3.))]);
+    assert_eq!(fe.evaluate(&mut values)?, Reading::Known(Some(5.0)));
+
+    let mut values = HashMap::from([(0, None)]);
+    assert_eq!(fe.evaluate(&mut values)?, Reading::Unknown);
     Ok(())
 }
 ```
