@@ -12,6 +12,7 @@ use crate::formula::Formula;
 use crate::{parse, FormulaError, Reading};
 
 mod builders;
+mod demand;
 mod display;
 mod evaluate;
 mod functions;
