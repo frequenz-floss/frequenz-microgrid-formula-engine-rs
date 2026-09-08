@@ -4,6 +4,7 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+use crate::formula::Function;
 use crate::parser::Rule;
 
 /// An error parsing a formula string or evaluating a structurally invalid
@@ -19,8 +20,13 @@ pub enum FormulaError {
     InvalidNumber(String),
     /// A component id that does not fit `u64`.
     InvalidComponentId(String),
-    /// A component with no value in the map.
-    MissingComponent,
+    /// A function call with a number of arguments it does not take.
+    Arity {
+        /// The function that was called.
+        function: Function,
+        /// The number of arguments it was given.
+        args: usize,
+    },
     /// A parser invariant did not hold, which is a bug in this crate.
     Internal(String),
 }
@@ -33,7 +39,12 @@ impl Display for FormulaError {
             FormulaError::InvalidComponentId(literal) => {
                 write!(f, "Invalid component id: {literal}")
             }
-            FormulaError::MissingComponent => f.write_str("Placeholder out of bounds"),
+            FormulaError::Arity { function, args: 0 } => {
+                write!(f, "{function:?} requires at least one argument")
+            }
+            FormulaError::Arity { function, .. } => {
+                write!(f, "{function:?} takes exactly one argument")
+            }
             FormulaError::Internal(message) => write!(f, "internal parser error: {message}"),
         }
     }

@@ -8,6 +8,9 @@ use std::{
     vec,
 };
 
+use crate::Formula;
+use crate::Reading;
+
 mod value_source;
 
 fn max<T>(a: OptionW<T>, b: OptionW<T>) -> OptionW<T>
@@ -83,132 +86,119 @@ impl Sub for OptionW<f32> {
     }
 }
 
+/// Evaluates `fe` over `values`, panicking if the result is unknown.
+fn calc(fe: &Formula<f32>, mut values: HashMap<u64, Option<f32>>) -> Option<f32> {
+    match fe.evaluate(&mut values).unwrap() {
+        Reading::Known(value) => value,
+        Reading::Unknown => panic!("unknown"),
+    }
+}
+
 #[test]
 fn test_none_formula() {
     let fe = crate::parse::<f32>("None").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::new()), None);
 
     let fe = crate::parse::<f32>("2 + None").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::new()), None);
     let fe = crate::parse::<f32>("#2 + None").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::from([(2, Some(12.))])).unwrap(),
-        None
-    );
+    assert_eq!(calc(&fe, HashMap::from([(2, Some(12.))])), None);
 
     let fe = crate::parse::<f32>("MIN(None, None)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::new()), None);
     let fe = crate::parse::<f32>("MAX(None, None)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::new()), None);
 
     let fe = crate::parse::<f32>("MIN(None, 10, -10)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::new()), None);
     let fe = crate::parse::<f32>("MAX(None, 10, -10)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::new()), None);
     let fe = crate::parse::<f32>("COALESCE(None, 10)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), Some(10.));
+    assert_eq!(calc(&fe, HashMap::new()), Some(10.));
     let fe = crate::parse::<f32>("COALESCE(10, None, 12)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap(), Some(10.));
+    assert_eq!(calc(&fe, HashMap::new()), Some(10.));
     let fe = crate::parse::<f32>("COALESCE(#2, None, 12)").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::from([(2, Some(2.))])).unwrap(),
-        Some(2.)
-    );
+    assert_eq!(calc(&fe, HashMap::from([(2, Some(2.))])), Some(2.));
 }
 
 #[test]
 fn test_parse_addition() {
     let fe = crate::parse::<f32>("1 + 1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. + 1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. + 1.);
 }
 
 #[test]
 fn test_parse_multiplication() {
     let fe = crate::parse::<f32>("0.9 * 1.1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 0.9 * 1.1);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 0.9 * 1.1);
 }
 
 #[test]
 fn test_parse_subtraction() {
     let fe = crate::parse::<f32>("1 - 1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. - 1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. - 1.);
 }
 
 #[test]
 fn test_parse_division() {
     let fe = crate::parse::<f32>("1 / 1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. / 1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. / 1.);
 }
 
 #[test]
 fn test_parse_addition_whitespace() {
     let fe = crate::parse::<f32>("1+1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. + 1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. + 1.);
     let fe = crate::parse::<f32>("1+ 1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. + 1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. + 1.);
     let fe = crate::parse::<f32>("1 +1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), 1. + 1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. + 1.);
 }
 
 #[test]
 fn test_combination() {
     let fe = crate::parse::<f32>("1 + 1 * 2").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::new()).unwrap().unwrap(),
-        1. + 1. * 2.
-    );
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 1. + 1. * 2.);
 }
 
 #[test]
 fn test_combination_mul_add() {
     let fe = crate::parse::<f32>("2 * 1 + 2").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::new()).unwrap().unwrap(),
-        2. * 1. + 2.
-    );
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), 2. * 1. + 2.);
 }
 
 #[test]
 fn test_negative_value() {
     let fe = crate::parse::<f32>("-1").unwrap();
-    assert_eq!(fe.calculate(&HashMap::new()).unwrap().unwrap(), -1.);
+    assert_eq!(calc(&fe, HashMap::new()).unwrap(), -1.);
 }
 
 #[test]
 fn test_placeholder() {
     let fe = crate::parse::<f32>("#0").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::from([(0, Some(1.))]))
-            .unwrap()
-            .unwrap(),
-        1.
-    );
+    assert_eq!(calc(&fe, HashMap::from([(0, Some(1.))])).unwrap(), 1.);
 }
 
 #[test]
 fn test_negative_placeholder() {
     let fe = crate::parse::<f32>("-#0").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::from([(0, Some(1.))]))
-            .unwrap()
-            .unwrap(),
-        -1.
-    );
+    assert_eq!(calc(&fe, HashMap::from([(0, Some(1.))])).unwrap(), -1.);
 }
 
 #[test]
-fn test_invalid_placeholder() {
+fn test_missing_placeholder_is_unknown() {
     let fe = crate::parse::<f32>("#1").unwrap();
-    assert!(fe.calculate(&HashMap::from([(0, Some(1.))])).is_err());
+    assert_eq!(
+        fe.evaluate(&mut HashMap::from([(0, Some(1.))])).unwrap(),
+        Reading::Unknown
+    );
 }
 
 #[test]
 fn test_placeholder_addition() {
     let fe = crate::parse::<f32>("#0 + #1").unwrap();
     assert_eq!(
-        fe.calculate(&HashMap::from([(0, Some(1.)), (1, Some(2.))]))
-            .unwrap()
-            .unwrap(),
+        calc(&fe, HashMap::from([(0, Some(1.)), (1, Some(2.))])).unwrap(),
         3.
     );
 }
@@ -216,52 +206,48 @@ fn test_placeholder_addition() {
 #[test]
 fn test_calculating_with_nones() {
     let fe = crate::parse::<f32>("#0 + #1").unwrap();
-    assert!(fe
-        .calculate(&HashMap::from([(0, Some(1.)), (1, None)]))
-        .unwrap()
-        .is_none());
+    assert!(calc(&fe, HashMap::from([(0, Some(1.)), (1, None)])).is_none());
 }
 
 #[test]
 fn test_function_coalesce() {
     let fe = crate::parse::<f32>("COALESCE(#0, #1,#2)").unwrap();
     assert_eq!(
-        fe.calculate(&HashMap::from([(0, None), (1, Some(1.)), (2, Some(2.))]))
-            .unwrap()
-            .unwrap(),
+        calc(
+            &fe,
+            HashMap::from([(0, None), (1, Some(1.)), (2, Some(2.))])
+        )
+        .unwrap(),
         1.
     );
     let fe = crate::parse::<f32>("COALESCE(#0)").unwrap();
-    assert_eq!(fe.calculate(&HashMap::from([(0, None)])).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::from([(0, None)])), None);
 }
 
 #[test]
 fn test_function_min() {
     let fe = crate::parse::<f32>("MIN(#0, #1,#2)").unwrap();
     assert_eq!(
-        fe.calculate(&HashMap::from([
-            (0, Some(3.)),
-            (1, Some(1.)),
-            (2, Some(2.))
-        ]))
-        .unwrap()
+        calc(
+            &fe,
+            HashMap::from([(0, Some(3.)), (1, Some(1.)), (2, Some(2.))])
+        )
         .unwrap(),
         1.
     );
     let fe = crate::parse::<f32>("MIN(#1)").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::from([(1, Some(1.)),])).unwrap(),
-        Some(1.)
-    );
-    assert_eq!(fe.calculate(&HashMap::from([(1, None),])).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::from([(1, Some(1.))])), Some(1.));
+    assert_eq!(calc(&fe, HashMap::from([(1, None)])), None);
 }
 
 #[test]
 fn test_function_min_none() {
     let fe = crate::parse::<f32>("MIN(#0, #1,#2)").unwrap();
     assert_eq!(
-        fe.calculate(&HashMap::from([(0, None), (1, Some(1.)), (2, Some(2.))]))
-            .unwrap(),
+        calc(
+            &fe,
+            HashMap::from([(0, None), (1, Some(1.)), (2, Some(2.))])
+        ),
         None
     );
 }
@@ -270,29 +256,23 @@ fn test_function_min_none() {
 fn test_function_max() {
     let fe = crate::parse::<f32>("MAX(#0, #1,#2)").unwrap();
     assert_eq!(
-        fe.calculate(&HashMap::from([
-            (0, Some(3.)),
-            (1, Some(1.)),
-            (2, Some(2.))
-        ]))
-        .unwrap()
+        calc(
+            &fe,
+            HashMap::from([(0, Some(3.)), (1, Some(1.)), (2, Some(2.))])
+        )
         .unwrap(),
         3.
     );
     let fe = crate::parse::<f32>("MAX(#1)").unwrap();
-    assert_eq!(
-        fe.calculate(&HashMap::from([(1, Some(1.)),])).unwrap(),
-        Some(1.)
-    );
-    assert_eq!(fe.calculate(&HashMap::from([(1, None),])).unwrap(), None);
+    assert_eq!(calc(&fe, HashMap::from([(1, Some(1.))])), Some(1.));
+    assert_eq!(calc(&fe, HashMap::from([(1, None)])), None);
 }
 
 #[test]
 fn test_function_max_none() {
     let fe = crate::parse::<f32>("MAX(#0, #1,#2)").unwrap();
     assert_eq!(
-        fe.calculate(&HashMap::from([(0, None), (1, None), (2, Some(2.))]))
-            .unwrap(),
+        calc(&fe, HashMap::from([(0, None), (1, None), (2, Some(2.))])),
         None
     );
 }
@@ -322,14 +302,15 @@ fn test_components_getter_function_function() {
 }
 
 fn test_large_microgrid_formula(components: HashMap<u64, Option<f32>>) {
-    let formula_result = crate::parse(concat!(
-        "MIN(0.0, COALESCE(#4 + #3, #2, COALESCE(#4, 0.0) + COALESCE(#3, 0.0))) + ",
-        "MIN(0.0, COALESCE(#6, #5, 0.0)) + ",
-        "MIN(0.0, COALESCE(#7, 0.0))"
-    ))
-    .unwrap()
-    .calculate(&components)
-    .unwrap();
+    let formula_result = calc(
+        &crate::parse(concat!(
+            "MIN(0.0, COALESCE(#4 + #3, #2, COALESCE(#4, 0.0) + COALESCE(#3, 0.0))) + ",
+            "MIN(0.0, COALESCE(#6, #5, 0.0)) + ",
+            "MIN(0.0, COALESCE(#7, 0.0))"
+        ))
+        .unwrap(),
+        components.clone(),
+    );
 
     let expected_result = min(
         OptionW(Some(0.0)),
@@ -380,14 +361,15 @@ fn test_large_microgrid_formula_fuzz() {
 }
 
 fn test_large_microgrid_formula_2(components: HashMap<u64, Option<f32>>) {
-    let formula_result = crate::parse(concat!(
-        "MAX(0.0, #1 - COALESCE(#2, #3, 0.0) - ",
-        "COALESCE(#5, COALESCE(#7, 0.0) + COALESCE(#6, 0.0))) + ",
-        "COALESCE(MAX(0.0, #2 - #3), 0.0) + COALESCE(MAX(0.0, #5 - #6 - #7), 0.0)",
-    ))
-    .unwrap()
-    .calculate(&components)
-    .unwrap();
+    let formula_result = calc(
+        &crate::parse(concat!(
+            "MAX(0.0, #1 - COALESCE(#2, #3, 0.0) - ",
+            "COALESCE(#5, COALESCE(#7, 0.0) + COALESCE(#6, 0.0))) + ",
+            "COALESCE(MAX(0.0, #2 - #3), 0.0) + COALESCE(MAX(0.0, #5 - #6 - #7), 0.0)",
+        ))
+        .unwrap(),
+        components.clone(),
+    );
 
     let expected_result = max(
         OptionW(Some(0.0)),
