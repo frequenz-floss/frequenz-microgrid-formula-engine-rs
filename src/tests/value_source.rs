@@ -14,6 +14,15 @@ fn hashmap_source_reads_present_keys_and_unknown_for_missing() {
 }
 
 #[test]
+fn evaluate_works_through_an_erased_source() {
+    let mut map: HashMap<u64, Option<f32>> = HashMap::from([(1, Some(2.0))]);
+    let mut erased: &mut dyn ValueSource<f32, u64> = &mut map;
+
+    let fe = crate::parse::<f32>("#1 + 1").unwrap();
+    assert_eq!(fe.evaluate(&mut erased).unwrap(), Reading::Known(Some(3.0)));
+}
+
+#[test]
 fn reading_map_touches_only_present_values() {
     assert_eq!(
         Reading::Known(Some(2)).map(|v| v * 2),
