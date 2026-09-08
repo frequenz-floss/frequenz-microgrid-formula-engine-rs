@@ -150,5 +150,5 @@ To add the library to your project, include the following in your Cargo.toml:
 
 ```toml
 [dependencies]
-frequenz-microgrid-formula-engine = "0.1"
+frequenz-microgrid-formula-engine = "0.2"
 ```
