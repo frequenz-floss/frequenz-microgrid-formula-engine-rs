@@ -77,7 +77,7 @@ impl Op {
             Op::Add => Some(l + r),
             Op::Sub => Some(l - r),
             Op::Mul => Some(l * r),
-            Op::Div => Some(l / r),
+            Op::Div => (r != T::zero()).then(|| l / r),
         })
     }
 }

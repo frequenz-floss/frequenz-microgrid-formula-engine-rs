@@ -57,6 +57,17 @@ fn strict_nodes_yield_none_when_any_operand_is_none() {
 }
 
 #[test]
+fn division_by_zero_is_none() {
+    assert_eq!(
+        eval("#1 / #2", &[(1, Some(1.0)), (2, Some(0.0))]),
+        Reading::Value(None)
+    );
+    assert_eq!(eval("1 / 0", &[]), Reading::Value(None));
+    assert_eq!(eval("0 / 0", &[]), Reading::Value(None));
+    assert_eq!(eval("1 / 2", &[]), Reading::Value(Some(0.5)));
+}
+
+#[test]
 fn zero_argument_function_is_a_structural_error() {
     let expr = Expr::<f32>::Function {
         function: Function::Coalesce,
