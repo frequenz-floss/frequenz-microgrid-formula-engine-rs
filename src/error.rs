@@ -4,6 +4,9 @@
 use crate::parser::Rule;
 use std::{error::Error, fmt::Display};
 
+/// An error parsing a formula string or evaluating a structurally invalid
+/// expression (for example a hand-built function call with zero
+/// arguments). Missing or `None` data never produces a `FormulaError`.
 #[derive(Debug)]
 pub struct FormulaError(pub String);
 

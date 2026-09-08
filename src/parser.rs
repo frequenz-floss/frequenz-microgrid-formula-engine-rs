@@ -27,10 +27,10 @@ lazy_static::lazy_static! {
     };
 }
 
-/// Parse a formula string into an expression tree.
-pub(crate) fn parse<T>(formula: &str) -> Result<Expr<T>, FormulaError>
+/// Parses a formula string into an expression with u64 component keys.
+pub fn parse<T>(formula: &str) -> Result<Expr<T>, FormulaError>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + NumberLike,
     <T as FromStr>::Err: Debug,
 {
     let pairs = FormulaParser::parse(Rule::formula, formula)?;
@@ -39,7 +39,7 @@ where
 
 fn parse_to_expr<T>(pairs: Pairs<Rule>) -> Result<Expr<T>, FormulaError>
 where
-    T: FromStr + NumberLike<T>,
+    T: FromStr + NumberLike,
     <T as FromStr>::Err: Debug,
 {
     PRATT_PARSER
@@ -58,26 +58,21 @@ where
                     .parse()
                     .map(Expr::Component)
                     .map_err(|e| FormulaError(format!("Invalid component id: {e:?}")))?,
-                Rule::coalesce => Expr::Function {
-                    function: Function::Coalesce,
+                Rule::coalesce | Rule::min | Rule::max | Rule::avg => Expr::Function {
+                    function: match primary.as_rule() {
+                        Rule::coalesce => Function::Coalesce,
+                        Rule::min => Function::Min,
+                        Rule::max => Function::Max,
+                        _ => Function::Avg,
+                    },
                     args: primary
                         .into_inner()
                         .map(|x| parse_to_expr(Pairs::single(x)))
                         .collect::<Result<_, _>>()?,
                 },
-                Rule::min => Expr::Function {
-                    function: Function::Min,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_expr(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
-                },
-                Rule::max => Expr::Function {
-                    function: Function::Max,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_expr(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
+                Rule::sqrt => Expr::Function {
+                    function: Function::Sqrt,
+                    args: vec![parse_to_expr(primary.into_inner())?],
                 },
                 rule => {
                     return Err(FormulaError(format!(
@@ -114,7 +109,7 @@ where
         .map_prefix(|op, rhs| match op.as_rule() {
             Rule::unary_minus => {
                 if let Ok(rhs) = rhs {
-                    Ok(Expr::UnaryMinus(Box::new(rhs)))
+                    Ok(Expr::Neg(Box::new(rhs)))
                 } else {
                     rhs
                 }

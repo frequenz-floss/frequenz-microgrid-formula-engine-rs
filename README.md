@@ -7,51 +7,66 @@ A library to create formulas over streamed data, primarily used for calculating 
 
 ## Usage
 
-The `FormulaEngine` can *only* work with _resampled_ component data streams. It has been designed to work with the following libraries:
-- [frequenz-resampling-rs](https://github.com/frequenz-floss/frequenz-resampling-rs) - A resampling library, which sends `None` values when data is missing. See [Handling Nulls and Missing Values](#handling-nulls-and-missing-values).
-- [frequenz-microgrid-component-graph-rs](https://github.com/frequenz-floss/frequenz-microgrid-component-graph-rs) - A component graph library, for generating formulas.
+The engine evaluates formulas over per-component values, one evaluation per
+snapshot. It is designed to work with:
+- [frequenz-resampling-rs](https://github.com/frequenz-floss/frequenz-resampling-rs) - resampled streams that yield `None` when data is missing.
+- [frequenz-microgrid-component-graph-rs](https://github.com/frequenz-floss/frequenz-microgrid-component-graph-rs) - generates formula strings from the component graph.
 
-The `FormulaEngine` can be created from a string formula using the `try_new` method. Formulas can contain component placeholders, represented by `#` followed by a number. To calculate the formula, provide an iterator of `Option` values where:
-- `None` represents a missing value
-- `Some(value)` represents a value
-
-The result of the calculation will be an `Option` value.
-
-### Example:
+### Example
 
 ```rust
-use frequenz_formula_engine::{FormulaEngine, FormulaError};
+use frequenz_microgrid_formula_engine::{FormulaEngine, FormulaError, Reading};
+use std::collections::HashMap;
 
 fn main() -> Result<(), FormulaError> {
-    let fe = FormulaEngine::try_new("#0 + #1")?;
-    assert_eq!(fe.calculate(&[Some(1.0), Some(2.0)])?, Some(3.0));
+    let fe = FormulaEngine::<f32>::try_new("COALESCE(#0, #1 + #2)")?;
+    let mut values = HashMap::from([(0, None), (1, Some(2.0)), (2, Some(3.0))]);
+    assert_eq!(fe.evaluate(&mut values)?, Reading::Value(Some(5.0)));
     Ok(())
 }
 ```
 
-### Handling Nulls and Missing Values
+### Value sources and readings
 
-When dealing with missing data, use `None` to indicate a missing value. If the formula requires a value for a placeholder but it is missing, the result will also be `None` unless a fallback function like `COALESCE` is used.
+`evaluate` pulls values through the `ValueSource` trait. Each lookup returns a
+`Reading`:
 
-Example:
+- `Reading::Value(Some(v))` — a value.
+- `Reading::Value(None)` — known to be missing, e.g. a resampler with no data.
+- `Reading::Undecided` — not known yet, e.g. a component that is not subscribed.
 
+A `HashMap<K, Option<T>>` is a `ValueSource`; a key absent from the map reads
+as `Undecided`.
+
+`COALESCE` returns its first present argument, moves past `None`, and stops at
+`Undecided`. Every other operator and function reads all of its operands and
+yields `Undecided` if any operand is, otherwise `None` if any operand is.
+Because `evaluate` reads exactly the components it needs, a `ValueSource` that
+records the keys it is asked for learns which components the formula currently
+depends on.
+
+### Building expressions in code
+
+```rust
+use frequenz_microgrid_formula_engine::{Expr, FormulaEngine};
+
+let grid = Expr::<f32>::component(1);
+let pv = Expr::<f32>::component(2);
+let net = (grid + pv.coalesce(Expr::value(Some(0.0)))) * Expr::value(Some(0.5));
+assert_eq!(net.to_string(), "(#1 + COALESCE(#2, 0)) * 0.5");
+let engine = FormulaEngine::from_expr(net);
 ```
-COALESCE(#1, 0)  // If #1 is None, it will return 0
-```
 
-### Error Handling
+`Expr::map_components` replaces every component key, so a parsed formula can
+be re-keyed by whatever the caller indexes its values with.
 
-The FormulaEngine may return errors for invalid formulas, incorrect argument counts, or division by zero. These are returned as a FormulaError. Handle them gracefully for robust applications.
+### Errors
 
-```Rust
-match FormulaEngine::try_new("#0 / #1") {
-    Ok(fe) => match fe.calculate(&[Some(10.0), Some(0.0)]) {
-        Ok(result) => println!("Result: {:?}", result),
-        Err(e) => println!("Calculation error: {:?}", e),
-    },
-    Err(e) => println!("Invalid formula: {:?}", e),
-}
-```
+`try_new` and `parse` return a `FormulaError` for a formula that does not
+parse, including wrong function arity. `evaluate` returns an error only for a
+structurally invalid hand-built expression, such as a function with no
+arguments. Missing data never errors: division by zero and the square root of
+a negative number yield `None`.
 
 ## Formula Syntax Overview
 
@@ -94,11 +109,13 @@ Expressions follow standard precedence rules (multiplication/division before add
 
 ### Functions
 
-Formulas support these functions that operate on a comma-separated list of expressions:
+Formulas support these functions. All but `SQRT` take a comma-separated list of expressions:
 
 - `COALESCE(a, b, ...)` — Returns the first non-null value from the list
 - `MIN(a, b, ...)` — Returns the smallest value
 - `MAX(a, b, ...)` — Returns the largest value
+- `AVG(a, b, ...)` — Returns the arithmetic mean
+- `SQRT(a)` — Returns the square root, or null for a negative argument
 
 Examples:
 
@@ -133,5 +150,5 @@ To add the library to your project, include the following in your Cargo.toml:
 
 ```toml
 [dependencies]
-frequenz-microgrid-formula-engine = "0.1"
+frequenz-microgrid-formula-engine = "0.2"
 ```

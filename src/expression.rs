@@ -1,129 +1,341 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
+use crate::value_source::{strict, Reading, ValueSource};
 use crate::{error::FormulaError, traits::NumberLike};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-};
-use std::{ops::Neg, str::FromStr};
+use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::ops::Neg;
 
-#[derive(Debug)]
-pub enum Expr<T> {
+/// An expression tree over constants, component references, operators and
+/// functions.
+///
+/// `Value(None)` is the known-missing constant written as `None` in the
+/// grammar: it means the value is decided to be absent, which is different
+/// from [`Reading::Undecided`](crate::Reading::Undecided), meaning the value
+/// is not known yet.
+///
+/// `Display` round-trips through [`parse`](crate::parse) for `K = u64` keys
+/// and finite, non-negative constants: `parse(&expr.to_string()) == expr`.
+/// It does not round-trip when:
+/// - `K` is not `u64` — other keys render as `#<key>`, which `parse` rejects.
+/// - a constant is `NaN` or infinite — these do not parse back.
+/// - a constant is negative — `Value(Some(-2.0))` renders as `-2`, which
+///   re-parses as `Neg(Value(2.0))`, not `Value(-2.0)`.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr<T, K = u64> {
+    /// A constant, or `None` for the known-missing constant.
     Value(Option<T>),
-    UnaryMinus(Box<Expr<T>>),
+    /// The arithmetic negation of an expression (`-expr`).
+    Neg(Box<Expr<T, K>>),
+    /// A binary operator applied to two operands.
     Op {
-        lhs: Box<Expr<T>>,
+        /// The left-hand operand.
+        lhs: Box<Expr<T, K>>,
+        /// The operator.
         op: Op,
-        rhs: Box<Expr<T>>,
+        /// The right-hand operand.
+        rhs: Box<Expr<T, K>>,
     },
+    /// A function call over one or more argument expressions.
     Function {
+        /// The function being called.
         function: Function,
-        args: Vec<Expr<T>>,
+        /// The argument expressions.
+        args: Vec<Expr<T, K>>,
     },
-    Component(u64),
+    /// A reference to a component's value, keyed by `K`.
+    Component(K),
 }
 
-impl<T: FromStr> Expr<T> where <T as FromStr>::Err: Debug {}
-
-impl<T: NumberLike<T> + PartialOrd> Expr<T> {
-    pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
-        Ok(match self {
-            Expr::Value(value) => *value,
-            Expr::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
-            Expr::Op { lhs, op, rhs } => op.apply(lhs.calculate(values)?, rhs.calculate(values)?),
-            Expr::Function { function, args } => function.apply(
-                &args
-                    .iter()
-                    .map(|expr| expr.calculate(values))
-                    .collect::<Result<Vec<Option<T>>, FormulaError>>()?,
-            ),
-            Expr::Component(i) => values
-                .get(i)
-                .copied()
-                .ok_or(FormulaError("Placeholder out of bounds".to_string()))?,
-        })
+impl<T, K> Expr<T, K> {
+    /// The set of component keys the expression references.
+    pub fn components(&self) -> HashSet<K>
+    where
+        K: Clone + Eq + Hash,
+    {
+        let mut components = HashSet::new();
+        self.collect_components(&mut components);
+        components
     }
 
-    pub fn components(&self) -> HashSet<u64> {
+    fn collect_components(&self, into: &mut HashSet<K>)
+    where
+        K: Clone + Eq + Hash,
+    {
         match self {
-            Expr::Value(_) => HashSet::new(),
-            Expr::UnaryMinus(expr) => expr.components(),
-            Expr::Op { lhs, rhs, .. } => {
-                let mut components = lhs.components();
-                components.extend(rhs.components());
-                components
+            Expr::Value(_) => {}
+            Expr::Component(key) => {
+                into.insert(key.clone());
             }
-            Expr::Function { args, .. } => args
-                .iter()
-                .map(Expr::components)
-                .fold(HashSet::new(), |acc, x| acc.union(&x).copied().collect()),
-            Expr::Component(i) => HashSet::from([*i]),
+            Expr::Neg(expr) => expr.collect_components(into),
+            Expr::Op { lhs, rhs, .. } => {
+                lhs.collect_components(into);
+                rhs.collect_components(into);
+            }
+            Expr::Function { args, .. } => {
+                for arg in args {
+                    arg.collect_components(into);
+                }
+            }
+        }
+    }
+
+    /// Replaces every component key with `f(key)`, leaving constants and
+    /// structure untouched.
+    pub fn map_components<K2>(self, f: impl Fn(K) -> K2) -> Expr<T, K2> {
+        self.map_components_ref(&f)
+    }
+
+    fn map_components_ref<K2>(self, f: &impl Fn(K) -> K2) -> Expr<T, K2> {
+        match self {
+            Expr::Value(value) => Expr::Value(value),
+            Expr::Component(key) => Expr::Component(f(key)),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.map_components_ref(f))),
+            Expr::Op { lhs, op, rhs } => Expr::Op {
+                lhs: Box::new(lhs.map_components_ref(f)),
+                op,
+                rhs: Box::new(rhs.map_components_ref(f)),
+            },
+            Expr::Function { function, args } => Expr::Function {
+                function,
+                args: args
+                    .into_iter()
+                    .map(|arg| arg.map_components_ref(f))
+                    .collect(),
+            },
+        }
+    }
+
+    /// A constant, `None` for a missing value.
+    pub fn value(value: Option<T>) -> Self {
+        Expr::Value(value)
+    }
+
+    /// A reference to the component with the given key.
+    pub fn component(key: K) -> Self {
+        Expr::Component(key)
+    }
+
+    /// `COALESCE(self, other)`, extending `self` if it is already a coalesce.
+    pub fn coalesce(self, other: Self) -> Self {
+        self.push_or_wrap(Function::Coalesce, other)
+    }
+
+    /// `MIN(self, other)`, extending `self` if it is already a min.
+    pub fn min(self, other: Self) -> Self {
+        self.push_or_wrap(Function::Min, other)
+    }
+
+    /// `MAX(self, other)`, extending `self` if it is already a max.
+    pub fn max(self, other: Self) -> Self {
+        self.push_or_wrap(Function::Max, other)
+    }
+
+    /// `AVG(self, others...)`.
+    pub fn avg(self, others: impl IntoIterator<Item = Self>) -> Self {
+        Expr::Function {
+            function: Function::Avg,
+            args: std::iter::once(self).chain(others).collect(),
+        }
+    }
+
+    /// `SQRT(self)`.
+    pub fn sqrt(self) -> Self {
+        Expr::Function {
+            function: Function::Sqrt,
+            args: vec![self],
+        }
+    }
+
+    fn push_or_wrap(self, function: Function, other: Self) -> Self {
+        match self {
+            Expr::Function {
+                function: existing,
+                mut args,
+            } if existing == function => {
+                args.push(other);
+                Expr::Function { function, args }
+            }
+            first => Expr::Function {
+                function,
+                args: vec![first, other],
+            },
+        }
+    }
+
+    fn binary(self, op: Op, rhs: Self) -> Self {
+        Expr::Op {
+            lhs: Box::new(self),
+            op,
+            rhs: Box::new(rhs),
         }
     }
 }
 
-#[derive(Debug)]
+impl<T, K> std::ops::Add for Expr<T, K> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        self.binary(Op::Add, rhs)
+    }
+}
+
+impl<T, K> std::ops::Sub for Expr<T, K> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        self.binary(Op::Sub, rhs)
+    }
+}
+
+impl<T, K> std::ops::Mul for Expr<T, K> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        self.binary(Op::Mul, rhs)
+    }
+}
+
+impl<T, K> std::ops::Div for Expr<T, K> {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self {
+        self.binary(Op::Div, rhs)
+    }
+}
+
+impl<T, K> std::ops::Neg for Expr<T, K> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Expr::Neg(Box::new(self))
+    }
+}
+
+impl<T: NumberLike, K> Expr<T, K> {
+    /// Evaluates the expression, pulling component values from `source`.
+    pub(crate) fn evaluate(
+        &self,
+        source: &mut impl ValueSource<K, T>,
+    ) -> Result<Reading<T>, FormulaError> {
+        Ok(match self {
+            Expr::Value(value) => Reading::Value(*value),
+            Expr::Component(id) => source.get(id),
+            Expr::Neg(expr) => expr.evaluate(source)?.map(Neg::neg),
+            Expr::Op { lhs, op, rhs } => {
+                let lhs = lhs.evaluate(source)?;
+                let rhs = rhs.evaluate(source)?;
+                op.apply(lhs, rhs)
+            }
+            Expr::Function { function, args } => function.evaluate(args, source)?,
+        })
+    }
+}
+
+/// A binary arithmetic operator.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Op {
+    /// Addition.
     Add,
+    /// Subtraction.
     Sub,
+    /// Multiplication.
     Mul,
+    /// Division. Division by zero yields `Value(None)` rather than
+    /// infinity.
     Div,
 }
 
 impl Op {
-    pub fn apply<T: NumberLike<T>>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
-        if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
-            Some(match self {
-                Op::Add => lhs + rhs,
-                Op::Sub => lhs - rhs,
-                Op::Mul => lhs * rhs,
-                Op::Div => lhs / rhs,
-            })
-        } else {
-            None
-        }
+    /// Combines two already-read operands. Both are read before this is
+    /// called, so a `None` on one side never hides the other from the
+    /// source.
+    pub(crate) fn apply<T: NumberLike>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
+        lhs.zip(rhs).and_then(|(l, r)| match self {
+            Op::Add => Some(l + r),
+            Op::Sub => Some(l - r),
+            Op::Mul => Some(l * r),
+            Op::Div => (r != T::zero()).then(|| l / r),
+        })
     }
 }
 
-#[derive(Debug)]
+/// A function call in an expression.
+///
+/// All functions take one or more arguments, except [`Function::Sqrt`],
+/// which takes exactly one.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
+    /// Returns the first argument with a value: an argument that is
+    /// known-missing is skipped, and an undecided argument stops evaluation
+    /// (see [`crate`] for the full semantics).
     Coalesce,
+    /// The smallest of its arguments.
     Min,
+    /// The largest of its arguments.
     Max,
+    /// The arithmetic mean of its arguments.
+    Avg,
+    /// The square root of its single argument. Negative arguments yield
+    /// `Value(None)`.
+    Sqrt,
 }
 
 impl Function {
-    pub fn apply<T: Copy + PartialOrd>(&self, values: &[Option<T>]) -> Option<T> {
+    /// Evaluates a function call. `COALESCE` reads its arguments lazily;
+    /// every other function reads all of them first.
+    pub(crate) fn evaluate<T: NumberLike, K>(
+        &self,
+        args: &[Expr<T, K>],
+        source: &mut impl ValueSource<K, T>,
+    ) -> Result<Reading<T>, FormulaError> {
+        if args.is_empty() {
+            return Err(FormulaError(format!(
+                "{self} requires at least one argument"
+            )));
+        }
         match self {
-            Function::Coalesce => values
-                .iter()
-                .copied()
-                .find(Option::is_some)
-                .unwrap_or_default(),
-            // If any of the values is `None`, return `None` for Min/Max.
-            Function::Min => values
-                .iter()
-                .copied()
-                .reduce(|acc, x| match (acc, x) {
-                    (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
-                        Some(std::cmp::Ordering::Less) => Some(acc),
-                        _ => Some(x),
-                    },
-                    _ => None,
-                })
-                .unwrap_or_default(),
-            Function::Max => values
-                .iter()
-                .copied()
-                .reduce(|acc, x| match (acc, x) {
-                    (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
-                        Some(std::cmp::Ordering::Greater) => Some(acc),
-                        _ => Some(x),
-                    },
-                    _ => None,
-                })
-                .unwrap_or_default(),
+            Function::Coalesce => {
+                for arg in args {
+                    match arg.evaluate(source)? {
+                        Reading::Value(None) => continue,
+                        decided => return Ok(decided),
+                    }
+                }
+                Ok(Reading::Value(None))
+            }
+            Function::Sqrt => {
+                if args.len() != 1 {
+                    return Err(FormulaError("SQRT takes exactly one argument".to_string()));
+                }
+                Ok(args[0]
+                    .evaluate(source)?
+                    .and_then(|value| (value >= T::zero()).then(|| value.sqrt())))
+            }
+            Function::Avg | Function::Min | Function::Max => {
+                let readings = args
+                    .iter()
+                    .map(|arg| arg.evaluate(source))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(strict(readings).and_then(|values| {
+                    let count = T::from_usize(values.len());
+                    let reduced = values.into_iter().reduce(|acc, x| match self {
+                        Function::Avg => acc + x,
+                        Function::Min if acc.partial_cmp(&x) == Some(Ordering::Less) => acc,
+                        Function::Max if acc.partial_cmp(&x) == Some(Ordering::Greater) => acc,
+                        _ => x,
+                    });
+                    match self {
+                        Function::Avg => reduced.map(|sum| sum / count),
+                        _ => reduced,
+                    }
+                }))
+            }
         }
     }
 }
