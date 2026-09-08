@@ -11,6 +11,7 @@ use std::{
 use crate::formula_engine::FormulaEngine;
 use crate::Reading;
 
+mod evaluate;
 mod value_source;
 
 fn max<T>(a: OptionW<T>, b: OptionW<T>) -> OptionW<T>
@@ -84,6 +85,13 @@ impl Sub for OptionW<f32> {
             _ => None,
         })
     }
+}
+
+/// Parses `formula` and evaluates it over a map built from `values`.
+fn eval(formula: &str, values: &[(u64, Option<f32>)]) -> Reading<f32> {
+    let fe = FormulaEngine::<f32>::try_new(formula).unwrap();
+    let mut source: HashMap<u64, Option<f32>> = values.iter().copied().collect();
+    fe.evaluate(&mut source).unwrap()
 }
 
 /// Evaluates `fe` over `values`, panicking if the result is undecided.

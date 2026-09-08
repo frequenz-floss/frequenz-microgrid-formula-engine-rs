@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use crate::value_source::{strict, Reading, ValueSource};
+use crate::FormulaEngine;
 
 #[test]
 fn hashmap_source_reads_present_keys_and_undecided_for_missing() {
@@ -11,6 +12,15 @@ fn hashmap_source_reads_present_keys_and_undecided_for_missing() {
     assert_eq!(ValueSource::get(&mut map, &1), Reading::Value(Some(2.0)));
     assert_eq!(ValueSource::get(&mut map, &2), Reading::Value(None));
     assert_eq!(ValueSource::get(&mut map, &3), Reading::Undecided);
+}
+
+#[test]
+fn evaluate_works_through_an_erased_source() {
+    let mut map: HashMap<u64, Option<f32>> = HashMap::from([(1, Some(2.0))]);
+    let mut erased: &mut dyn ValueSource<u64, f32> = &mut map;
+
+    let fe = FormulaEngine::<f32>::try_new("#1 + 1").unwrap();
+    assert_eq!(fe.evaluate(&mut erased).unwrap(), Reading::Value(Some(3.0)));
 }
 
 #[test]
