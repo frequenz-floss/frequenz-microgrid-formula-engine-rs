@@ -11,7 +11,7 @@ use std::ops::Neg;
 #[derive(Debug)]
 pub enum Expr<T, K = u64> {
     Value(Option<T>),
-    UnaryMinus(Box<Expr<T, K>>),
+    Neg(Box<Expr<T, K>>),
     Op {
         lhs: Box<Expr<T, K>>,
         op: Op,
@@ -44,7 +44,7 @@ impl<T, K> Expr<T, K> {
             Expr::Component(key) => {
                 into.insert(key.clone());
             }
-            Expr::UnaryMinus(expr) => expr.collect_components(into),
+            Expr::Neg(expr) => expr.collect_components(into),
             Expr::Op { lhs, rhs, .. } => {
                 lhs.collect_components(into);
                 rhs.collect_components(into);
@@ -67,7 +67,7 @@ impl<T, K> Expr<T, K> {
         match self {
             Expr::Value(value) => Expr::Value(value),
             Expr::Component(key) => Expr::Component(f(key)),
-            Expr::UnaryMinus(expr) => Expr::UnaryMinus(Box::new(expr.map_components_ref(f))),
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.map_components_ref(f))),
             Expr::Op { lhs, op, rhs } => Expr::Op {
                 lhs: Box::new(lhs.map_components_ref(f)),
                 op,
@@ -93,7 +93,7 @@ impl<T: NumberLike, K> Expr<T, K> {
         Ok(match self {
             Expr::Value(value) => Reading::Value(*value),
             Expr::Component(id) => source.get(id),
-            Expr::UnaryMinus(expr) => expr.evaluate(source)?.map(Neg::neg),
+            Expr::Neg(expr) => expr.evaluate(source)?.map(Neg::neg),
             Expr::Op { lhs, op, rhs } => {
                 let lhs = lhs.evaluate(source)?;
                 let rhs = rhs.evaluate(source)?;

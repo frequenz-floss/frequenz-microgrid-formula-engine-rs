@@ -114,7 +114,7 @@ where
         .map_prefix(|op, rhs| match op.as_rule() {
             Rule::unary_minus => {
                 if let Ok(rhs) = rhs {
-                    Ok(Expr::UnaryMinus(Box::new(rhs)))
+                    Ok(Expr::Neg(Box::new(rhs)))
                 } else {
                     rhs
                 }
