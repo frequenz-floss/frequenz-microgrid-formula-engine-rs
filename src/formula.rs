@@ -11,7 +11,7 @@ use std::ops::Neg;
 #[derive(Debug)]
 pub enum Formula<T, K = u64> {
     Constant(Option<T>),
-    UnaryMinus(Box<Formula<T, K>>),
+    Neg(Box<Formula<T, K>>),
     Op {
         lhs: Box<Formula<T, K>>,
         op: Op,
@@ -44,7 +44,7 @@ impl<T, K> Formula<T, K> {
             Formula::Component(key) => {
                 into.insert(key.clone());
             }
-            Formula::UnaryMinus(expr) => expr.collect_components(into),
+            Formula::Neg(expr) => expr.collect_components(into),
             Formula::Op { lhs, rhs, .. } => {
                 lhs.collect_components(into);
                 rhs.collect_components(into);
@@ -67,7 +67,7 @@ impl<T, K> Formula<T, K> {
         match self {
             Formula::Constant(value) => Formula::Constant(value),
             Formula::Component(key) => Formula::Component(f(key)),
-            Formula::UnaryMinus(expr) => Formula::UnaryMinus(Box::new(expr.map_components_ref(f))),
+            Formula::Neg(expr) => Formula::Neg(Box::new(expr.map_components_ref(f))),
             Formula::Op { lhs, op, rhs } => Formula::Op {
                 lhs: Box::new(lhs.map_components_ref(f)),
                 op,
@@ -96,7 +96,7 @@ impl<T: Real, K> Formula<T, K> {
         Ok(match self {
             Formula::Constant(value) => Reading::Known(*value),
             Formula::Component(id) => source.read(id),
-            Formula::UnaryMinus(expr) => expr.evaluate(source)?.map(Neg::neg),
+            Formula::Neg(expr) => expr.evaluate(source)?.map(Neg::neg),
             Formula::Op { lhs, op, rhs } => {
                 let lhs = lhs.evaluate(source)?;
                 let rhs = rhs.evaluate(source)?;
