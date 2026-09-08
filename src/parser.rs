@@ -58,26 +58,21 @@ where
                     .parse()
                     .map(Expr::Component)
                     .map_err(|e| FormulaError(format!("Invalid component id: {e:?}")))?,
-                Rule::coalesce => Expr::Function {
-                    function: Function::Coalesce,
+                Rule::coalesce | Rule::min | Rule::max | Rule::avg => Expr::Function {
+                    function: match primary.as_rule() {
+                        Rule::coalesce => Function::Coalesce,
+                        Rule::min => Function::Min,
+                        Rule::max => Function::Max,
+                        _ => Function::Avg,
+                    },
                     args: primary
                         .into_inner()
                         .map(|x| parse_to_expr(Pairs::single(x)))
                         .collect::<Result<_, _>>()?,
                 },
-                Rule::min => Expr::Function {
-                    function: Function::Min,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_expr(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
-                },
-                Rule::max => Expr::Function {
-                    function: Function::Max,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_expr(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
+                Rule::sqrt => Expr::Function {
+                    function: Function::Sqrt,
+                    args: vec![parse_to_expr(primary.into_inner())?],
                 },
                 rule => {
                     return Err(FormulaError(format!(

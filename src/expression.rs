@@ -131,6 +131,8 @@ pub enum Function {
     Coalesce,
     Min,
     Max,
+    Avg,
+    Sqrt,
 }
 
 impl Function {
@@ -156,17 +158,31 @@ impl Function {
                 }
                 Ok(Reading::Value(None))
             }
-            Function::Min | Function::Max => {
+            Function::Sqrt => {
+                if args.len() != 1 {
+                    return Err(FormulaError("SQRT takes exactly one argument".to_string()));
+                }
+                Ok(args[0]
+                    .evaluate(source)?
+                    .and_then(|value| (value >= T::zero()).then(|| value.sqrt())))
+            }
+            Function::Avg | Function::Min | Function::Max => {
                 let readings = args
                     .iter()
                     .map(|arg| arg.evaluate(source))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(strict(readings).and_then(|values| {
-                    values.into_iter().reduce(|acc, x| match self {
+                    let count = T::from_usize(values.len());
+                    let reduced = values.into_iter().reduce(|acc, x| match self {
+                        Function::Avg => acc + x,
                         Function::Min if acc.partial_cmp(&x) == Some(Ordering::Less) => acc,
                         Function::Max if acc.partial_cmp(&x) == Some(Ordering::Greater) => acc,
                         _ => x,
-                    })
+                    });
+                    match self {
+                        Function::Avg => reduced.map(|sum| sum / count),
+                        _ => reduced,
+                    }
                 }))
             }
         }
