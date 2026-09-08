@@ -1,8 +1,10 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
+use crate::value_source::{strict, Reading, ValueSource};
 use crate::{error::FormulaError, traits::NumberLike};
-use std::collections::{HashMap, HashSet};
+use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::ops::Neg;
 
 #[derive(Debug)]
@@ -22,21 +24,21 @@ pub enum Expr<T> {
 }
 
 impl<T: NumberLike> Expr<T> {
-    pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
+    /// Evaluates the expression, pulling component values from `source`.
+    pub(crate) fn evaluate(
+        &self,
+        source: &mut impl ValueSource<u64, T>,
+    ) -> Result<Reading<T>, FormulaError> {
         Ok(match self {
-            Expr::Value(value) => *value,
-            Expr::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
-            Expr::Op { lhs, op, rhs } => op.apply(lhs.calculate(values)?, rhs.calculate(values)?),
-            Expr::Function { function, args } => function.apply(
-                &args
-                    .iter()
-                    .map(|expr| expr.calculate(values))
-                    .collect::<Result<Vec<Option<T>>, FormulaError>>()?,
-            ),
-            Expr::Component(i) => values
-                .get(i)
-                .copied()
-                .ok_or(FormulaError("Placeholder out of bounds".to_string()))?,
+            Expr::Value(value) => Reading::Value(*value),
+            Expr::Component(id) => source.get(id),
+            Expr::UnaryMinus(expr) => expr.evaluate(source)?.map(Neg::neg),
+            Expr::Op { lhs, op, rhs } => {
+                let lhs = lhs.evaluate(source)?;
+                let rhs = rhs.evaluate(source)?;
+                op.apply(lhs, rhs)
+            }
+            Expr::Function { function, args } => function.evaluate(args, source)?,
         })
     }
 
@@ -67,17 +69,16 @@ pub enum Op {
 }
 
 impl Op {
-    pub fn apply<T: NumberLike>(&self, lhs: Option<T>, rhs: Option<T>) -> Option<T> {
-        if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
-            Some(match self {
-                Op::Add => lhs + rhs,
-                Op::Sub => lhs - rhs,
-                Op::Mul => lhs * rhs,
-                Op::Div => lhs / rhs,
-            })
-        } else {
-            None
-        }
+    /// Combines two already-read operands. Both are read before this is
+    /// called, so a `None` on one side never hides the other from the
+    /// source.
+    pub(crate) fn apply<T: NumberLike>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
+        lhs.zip(rhs).and_then(|(l, r)| match self {
+            Op::Add => Some(l + r),
+            Op::Sub => Some(l - r),
+            Op::Mul => Some(l * r),
+            Op::Div => Some(l / r),
+        })
     }
 }
 
@@ -89,36 +90,41 @@ pub enum Function {
 }
 
 impl Function {
-    pub fn apply<T: Copy + PartialOrd>(&self, values: &[Option<T>]) -> Option<T> {
+    /// Evaluates a function call. `COALESCE` reads its arguments lazily;
+    /// every other function reads all of them first.
+    pub(crate) fn evaluate<T: NumberLike>(
+        &self,
+        args: &[Expr<T>],
+        source: &mut impl ValueSource<u64, T>,
+    ) -> Result<Reading<T>, FormulaError> {
+        if args.is_empty() {
+            return Err(FormulaError(format!(
+                "{self:?} requires at least one argument"
+            )));
+        }
         match self {
-            Function::Coalesce => values
-                .iter()
-                .copied()
-                .find(Option::is_some)
-                .unwrap_or_default(),
-            // If any of the values is `None`, return `None` for Min/Max.
-            Function::Min => values
-                .iter()
-                .copied()
-                .reduce(|acc, x| match (acc, x) {
-                    (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
-                        Some(std::cmp::Ordering::Less) => Some(acc),
-                        _ => Some(x),
-                    },
-                    _ => None,
-                })
-                .unwrap_or_default(),
-            Function::Max => values
-                .iter()
-                .copied()
-                .reduce(|acc, x| match (acc, x) {
-                    (Some(acc), Some(x)) => match acc.partial_cmp(&x) {
-                        Some(std::cmp::Ordering::Greater) => Some(acc),
-                        _ => Some(x),
-                    },
-                    _ => None,
-                })
-                .unwrap_or_default(),
+            Function::Coalesce => {
+                for arg in args {
+                    match arg.evaluate(source)? {
+                        Reading::Value(None) => continue,
+                        decided => return Ok(decided),
+                    }
+                }
+                Ok(Reading::Value(None))
+            }
+            Function::Min | Function::Max => {
+                let readings = args
+                    .iter()
+                    .map(|arg| arg.evaluate(source))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(strict(readings).and_then(|values| {
+                    values.into_iter().reduce(|acc, x| match self {
+                        Function::Min if acc.partial_cmp(&x) == Some(Ordering::Less) => acc,
+                        Function::Max if acc.partial_cmp(&x) == Some(Ordering::Greater) => acc,
+                        _ => x,
+                    })
+                }))
+            }
         }
     }
 }

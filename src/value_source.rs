@@ -74,9 +74,6 @@ impl<K, T, S: ValueSource<K, T> + ?Sized> ValueSource<K, T> for &mut S {
 /// Combines the readings of a strict node's operands, all of which have
 /// already been read: `Undecided` if any is, otherwise `None` if any is,
 /// otherwise all the values in order.
-// Only used by tests until Task 3 wires it into evaluation; remove this
-// allow once that lands.
-#[allow(dead_code)]
 pub(crate) fn strict<T>(readings: impl IntoIterator<Item = Reading<T>>) -> Reading<Vec<T>> {
     readings
         .into_iter()

@@ -11,23 +11,20 @@ A library to create formulas over streamed data
 A [`FormulaEngine`] instance can be created from a [`String`] formula with the [`try_new`][`FormulaEngine::try_new`] method.
 Such a formula can contain component placeholders, which are represented by `#`
 followed by a number.
-To calculate the formula, you need to provide an iterator of Option values,
-where
-- `None` represents a missing value
-- `Some(value)` represents a value.
 
-The iterator must contain as many values as the formula has placeholders.
-The result of the calculation is an Option value.
+To evaluate the formula, provide a [`ValueSource`]; a `HashMap<u64,
+Option<T>>` is one, where `None` is a missing value and an absent key is
+an undecided one. The result is a [`Reading`].
 
 ```rust
-use frequenz_microgrid_formula_engine::{FormulaEngine, FormulaError};
+use frequenz_microgrid_formula_engine::{FormulaEngine, FormulaError, Reading};
 use std::collections::HashMap;
 
 fn main() -> Result<(), FormulaError> {
-    let fe = FormulaEngine::try_new("#0 + #1")?;
-    let components = fe.components();
-    assert_eq!(components, &[0, 1].into_iter().collect());
-    assert_eq!(fe.calculate(&HashMap::from([(0, Some(1.)), (1, Some(2.))]))?, Some(3.0));
+    let fe = FormulaEngine::<f32>::try_new("#0 + #1")?;
+    assert_eq!(fe.components(), &[0, 1].into_iter().collect());
+    let mut values = HashMap::from([(0, Some(1.)), (1, Some(2.))]);
+    assert_eq!(fe.evaluate(&mut values)?, Reading::Value(Some(3.0)));
     Ok(())
 }
 ```
