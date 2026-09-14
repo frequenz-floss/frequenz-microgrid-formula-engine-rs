@@ -22,6 +22,16 @@ pub enum FormulaError {
     NumberOutOfRange(String),
     /// A component id that does not fit `u64`.
     InvalidComponentId(String),
+    /// Parentheses or function calls nested deeper than the limit.
+    NestedTooDeep {
+        /// The nesting limit that was exceeded.
+        limit: usize,
+    },
+    /// A tree deeper than the limit, counting operators.
+    TooDeep {
+        /// The depth limit that was exceeded.
+        limit: usize,
+    },
     /// A function call with a number of arguments it does not take.
     Arity {
         /// The function that was called.
@@ -44,6 +54,10 @@ impl Display for FormulaError {
             FormulaError::InvalidComponentId(literal) => {
                 write!(f, "Invalid component id: {literal}")
             }
+            FormulaError::NestedTooDeep { limit } => {
+                write!(f, "Formula nests deeper than {limit} levels")
+            }
+            FormulaError::TooDeep { limit } => write!(f, "Formula is deeper than {limit} levels"),
             FormulaError::Arity { function, args: 0 } => {
                 write!(f, "{function:?} requires at least one argument")
             }

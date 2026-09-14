@@ -454,6 +454,34 @@ fn test_constant_out_of_range_is_a_parse_error() {
 }
 
 #[test]
+fn test_formulas_deeper_than_the_limits_are_a_parse_error() {
+    let nested = |n: usize| format!("{}#1{}", "(".repeat(n), ")".repeat(n));
+    assert!(crate::parse::<f32>(&nested(crate::MAX_NESTING)).is_ok());
+    let err = crate::parse::<f32>(&nested(crate::MAX_NESTING + 1)).unwrap_err();
+    assert_eq!(err, FormulaError::NestedTooDeep { limit: 128 });
+    assert_eq!(err.to_string(), "Formula nests deeper than 128 levels");
+    let coalesced = |n: usize| format!("{}#1{}", "COALESCE(".repeat(n), ", 0)".repeat(n));
+    assert!(crate::parse::<f32>(&coalesced(crate::MAX_NESTING + 1)).is_err());
+
+    // Every operator counts as a level, whichever it is.
+    let chain = |n: usize| {
+        let ops = ["+", "-", "*", "/"];
+        (1..n).fold("#1".to_string(), |s, i| format!("{s} {} #1", ops[i % 4]))
+    };
+    assert!(crate::parse::<f32>(&chain(crate::MAX_DEPTH)).is_ok());
+    let err = crate::parse::<f32>(&chain(crate::MAX_DEPTH + 1)).unwrap_err();
+    assert_eq!(err, FormulaError::TooDeep { limit: 1024 });
+    assert_eq!(err.to_string(), "Formula is deeper than 1024 levels");
+
+    // Siblings do not nest: closing a group must give its level back, and
+    // a deep group followed by a shallow one is still too deep.
+    let siblings = vec!["COALESCE(#1, 0)"; 200].join(" + ");
+    assert!(crate::parse::<f32>(&siblings).is_ok());
+    let deep_then_shallow = format!("{} + (#1)", nested(crate::MAX_NESTING + 1));
+    assert!(crate::parse::<f32>(&deep_then_shallow).is_err());
+}
+
+#[test]
 fn test_invalid_literals_are_named_in_the_error() {
     let err = crate::parse::<f32>("#99999999999999999999").unwrap_err();
     assert_eq!(

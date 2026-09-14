@@ -40,6 +40,7 @@ pub use formula::Formula;
 pub use num_traits::real::Real;
 #[cfg(test)]
 pub(crate) use parser::parse;
+pub use parser::{MAX_DEPTH, MAX_NESTING};
 pub use value_source::{Reading, ValueSource};
 
 #[cfg(test)]
