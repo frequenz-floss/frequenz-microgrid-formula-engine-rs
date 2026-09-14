@@ -5,6 +5,7 @@ use pest::{iterators::Pairs, pratt_parser::PrattParser, Parser};
 use pest_derive::Parser;
 use std::fmt::Debug;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use crate::formula::{Formula, Function, Op};
 use crate::FormulaError;
@@ -14,18 +15,16 @@ use num_traits::real::Real;
 #[grammar = "grammar.pest"]
 struct FormulaParser;
 
-lazy_static::lazy_static! {
-    pub static ref PRATT_PARSER: PrattParser<Rule> = {
-        use pest::pratt_parser::{Assoc::*, Op};
-        use Rule::*;
+static PRATT_PARSER: LazyLock<PrattParser<Rule>> = LazyLock::new(|| {
+    use pest::pratt_parser::{Assoc::*, Op};
+    use Rule::*;
 
-        PrattParser::new()
-            .op(Op::infix(add, Left) | Op::infix(sub, Left))
-            .op(Op::infix(mul, Left) | Op::infix(div, Left))
-            .op(Op::prefix(unary_minus))
-            .op(Op::postfix(Rule::EOI))
-    };
-}
+    PrattParser::new()
+        .op(Op::infix(add, Left) | Op::infix(sub, Left))
+        .op(Op::infix(mul, Left) | Op::infix(div, Left))
+        .op(Op::prefix(unary_minus))
+        .op(Op::postfix(Rule::EOI))
+});
 
 pub(crate) fn parse<T>(formula: &str) -> Result<Formula<T>, FormulaError>
 where
