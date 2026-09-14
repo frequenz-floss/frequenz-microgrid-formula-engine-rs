@@ -43,7 +43,7 @@ impl<T: NumberLike<T> + PartialOrd> Formula<T> {
             Formula::Component(i) => values
                 .get(i)
                 .copied()
-                .ok_or(FormulaError("Placeholder out of bounds".to_string()))?,
+                .ok_or(FormulaError::MissingComponent)?,
         })
     }
 
@@ -88,7 +88,7 @@ impl Op {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Function {
     Coalesce,
     Min,

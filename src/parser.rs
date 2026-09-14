@@ -63,13 +63,13 @@ where
                     .as_str()
                     .parse()
                     .map(|num| Formula::Constant(Some(num)))
-                    .map_err(|e| FormulaError(format!("Invalid number: {e:?}")))?,
+                    .map_err(|e| FormulaError::InvalidNumber(format!("{e:?}")))?,
                 Rule::component => primary
                     .as_str()
                     .replace("#", "")
                     .parse()
                     .map(Formula::Component)
-                    .map_err(|e| FormulaError(format!("Invalid component id: {e:?}")))?,
+                    .map_err(|e| FormulaError::InvalidComponentId(format!("{e:?}")))?,
                 Rule::coalesce => Formula::Function {
                     function: Function::Coalesce,
                     args: primary
@@ -92,8 +92,8 @@ where
                         .collect::<Result<_, _>>()?,
                 },
                 rule => {
-                    return Err(FormulaError(format!(
-                        "parse: expected atom, found {rule:?}"
+                    return Err(FormulaError::Internal(format!(
+                        "expected atom, found {rule:?}"
                     )))
                 }
             })
@@ -112,15 +112,15 @@ where
                         Rule::mul => Op::Mul,
                         Rule::div => Op::Div,
                         rule => {
-                            return Err(FormulaError(format!(
-                                "parse: expected operator, found {rule:?}"
+                            return Err(FormulaError::Internal(format!(
+                                "expected operator, found {rule:?}"
                             )))
                         }
                     },
                     rhs: Box::new(rhs),
                 })
             } else {
-                Err(FormulaError("Internal error".to_string()))
+                Err(FormulaError::Internal("internal error".to_string()))
             }
         })
         .map_prefix(|op, rhs| match op.as_rule() {
@@ -131,14 +131,14 @@ where
                     rhs
                 }
             }
-            rule => Err(FormulaError(format!(
-                "parse: unexpected prefix rule: {rule:?}"
+            rule => Err(FormulaError::Internal(format!(
+                "unexpected prefix rule: {rule:?}"
             ))),
         })
         .map_postfix(|lhs, op| match op.as_rule() {
             Rule::EOI => lhs,
-            rule => Err(FormulaError(format!(
-                "parse: unexpected postfix rule: {rule:?}"
+            rule => Err(FormulaError::Internal(format!(
+                "unexpected postfix rule: {rule:?}"
             ))),
         })
         .parse(pairs)
