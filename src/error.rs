@@ -18,6 +18,8 @@ pub enum FormulaError {
     Syntax(String),
     /// A numeric constant the number type cannot parse.
     InvalidNumber(String),
+    /// A numeric constant larger than the number type can hold.
+    NumberOutOfRange(String),
     /// A component id that does not fit `u64`.
     InvalidComponentId(String),
     /// A function call with a number of arguments it does not take.
@@ -36,6 +38,9 @@ impl Display for FormulaError {
         match self {
             FormulaError::Syntax(message) => f.write_str(message),
             FormulaError::InvalidNumber(literal) => write!(f, "Invalid number: {literal}"),
+            FormulaError::NumberOutOfRange(literal) => {
+                write!(f, "Number out of range: {literal}")
+            }
             FormulaError::InvalidComponentId(literal) => {
                 write!(f, "Invalid component id: {literal}")
             }

@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::formula::Formula;
-use crate::{parse, Reading};
+use crate::{parse, FormulaError, Reading};
 
 mod evaluate;
 mod functions;
@@ -438,4 +438,33 @@ fn test_large_microgrid_formula_2_fuzz() {
         }
         test_large_microgrid_formula_2(components);
     }
+}
+
+#[test]
+fn test_constant_out_of_range_is_a_parse_error() {
+    let big = "1".repeat(40);
+    let err = crate::parse::<f32>(&big).unwrap_err();
+    assert_eq!(err, FormulaError::NumberOutOfRange(big.clone()));
+    assert_eq!(err.to_string(), format!("Number out of range: {big}"));
+    assert!(crate::parse::<f64>(&big).is_ok());
+    let huge = "9".repeat(400);
+    assert!(crate::parse::<f64>(&huge).is_err());
+    assert!(crate::parse::<f32>(&f32::MAX.to_string()).is_ok());
+    assert!(crate::parse::<f64>(&f64::MAX.to_string()).is_ok());
+}
+
+#[test]
+fn test_invalid_literals_are_named_in_the_error() {
+    let err = crate::parse::<f32>("#99999999999999999999").unwrap_err();
+    assert_eq!(
+        err,
+        FormulaError::InvalidComponentId("#99999999999999999999".to_string())
+    );
+    assert_eq!(
+        err.to_string(),
+        "Invalid component id: #99999999999999999999"
+    );
+    let err = crate::parse::<f32>("1.2.3").unwrap_err();
+    assert_eq!(err, FormulaError::InvalidNumber("1.2.3".to_string()));
+    assert_eq!(err.to_string(), "Invalid number: 1.2.3");
 }

@@ -7,7 +7,6 @@ use pest::{
     Parser,
 };
 use pest_derive::Parser;
-use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
@@ -33,17 +32,16 @@ static PRATT_PARSER: LazyLock<PrattParser<Rule>> = LazyLock::new(|| {
 pub(crate) fn parse<T>(formula: &str) -> Result<Formula<T>, FormulaError>
 where
     T: FromStr + Real,
-    <T as FromStr>::Err: Debug,
 {
     let pairs = FormulaParser::parse(Rule::formula, formula)?;
     parse_to_formula(pairs)
 }
 
 /// Parses a formula string into a formula with `u64` component keys.
+/// A constant larger than `T` can hold is an error.
 impl<T> FromStr for Formula<T>
 where
     T: FromStr + Real,
-    <T as FromStr>::Err: Debug,
 {
     type Err = FormulaError;
 
@@ -56,7 +54,6 @@ where
 fn function_call<T>(function: Function, call: Pair<Rule>) -> Result<Formula<T>, FormulaError>
 where
     T: FromStr + Real,
-    <T as FromStr>::Err: Debug,
 {
     Ok(Formula::Function {
         function,
@@ -70,24 +67,28 @@ where
 fn parse_to_formula<T>(pairs: Pairs<Rule>) -> Result<Formula<T>, FormulaError>
 where
     T: FromStr + Real,
-    <T as FromStr>::Err: Debug,
 {
     PRATT_PARSER
         .map_primary(|primary| {
             Ok(match primary.as_rule() {
                 Rule::none => Formula::Constant(None),
                 Rule::expr => parse_to_formula(primary.into_inner())?,
-                Rule::num => primary
-                    .as_str()
-                    .parse()
-                    .map(|num| Formula::Constant(Some(num)))
-                    .map_err(|e| FormulaError::InvalidNumber(format!("{e:?}")))?,
+                Rule::num => {
+                    let num: T = primary
+                        .as_str()
+                        .parse()
+                        .map_err(|_| FormulaError::InvalidNumber(primary.as_str().to_string()))?;
+                    if num > T::max_value() {
+                        return Err(FormulaError::NumberOutOfRange(primary.as_str().to_string()));
+                    }
+                    Formula::Constant(Some(num))
+                }
                 Rule::component => primary
                     .as_str()
                     .replace("#", "")
                     .parse()
                     .map(Formula::Component)
-                    .map_err(|e| FormulaError::InvalidComponentId(format!("{e:?}")))?,
+                    .map_err(|_| FormulaError::InvalidComponentId(primary.as_str().to_string()))?,
                 Rule::coalesce => function_call(Function::Coalesce, primary)?,
                 Rule::min => function_call(Function::Min, primary)?,
                 Rule::max => function_call(Function::Max, primary)?,
