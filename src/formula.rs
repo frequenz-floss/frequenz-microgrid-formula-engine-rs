@@ -135,6 +135,7 @@ pub enum Function {
     Min,
     Max,
     Avg,
+    Sqrt,
 }
 
 impl Function {
@@ -160,6 +161,17 @@ impl Function {
                     }
                 }
                 Ok(Reading::Known(None))
+            }
+            Function::Sqrt => {
+                if args.len() != 1 {
+                    return Err(FormulaError::Arity {
+                        function: *self,
+                        args: args.len(),
+                    });
+                }
+                Ok(args[0]
+                    .evaluate(source)?
+                    .and_then(|value| (value >= T::zero()).then(|| value.sqrt())))
             }
             Function::Avg => {
                 let mut sum = T::zero();

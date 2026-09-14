@@ -92,6 +92,7 @@ where
                 Rule::min => function_call(Function::Min, primary)?,
                 Rule::max => function_call(Function::Max, primary)?,
                 Rule::avg => function_call(Function::Avg, primary)?,
+                Rule::sqrt => function_call(Function::Sqrt, primary)?,
                 rule => {
                     return Err(FormulaError::Internal(format!(
                         "expected atom, found {rule:?}"
