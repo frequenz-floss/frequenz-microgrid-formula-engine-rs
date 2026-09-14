@@ -1,7 +1,11 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
-use pest::{iterators::Pairs, pratt_parser::PrattParser, Parser};
+use pest::{
+    iterators::{Pair, Pairs},
+    pratt_parser::PrattParser,
+    Parser,
+};
 use pest_derive::Parser;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -48,6 +52,21 @@ where
     }
 }
 
+/// Builds `function` over the argument expressions inside a function rule.
+fn function_call<T>(function: Function, call: Pair<Rule>) -> Result<Formula<T>, FormulaError>
+where
+    T: FromStr + Real,
+    <T as FromStr>::Err: Debug,
+{
+    Ok(Formula::Function {
+        function,
+        args: call
+            .into_inner()
+            .map(|arg| parse_to_formula(Pairs::single(arg)))
+            .collect::<Result<_, _>>()?,
+    })
+}
+
 fn parse_to_formula<T>(pairs: Pairs<Rule>) -> Result<Formula<T>, FormulaError>
 where
     T: FromStr + Real,
@@ -69,27 +88,10 @@ where
                     .parse()
                     .map(Formula::Component)
                     .map_err(|e| FormulaError::InvalidComponentId(format!("{e:?}")))?,
-                Rule::coalesce => Formula::Function {
-                    function: Function::Coalesce,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_formula(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
-                },
-                Rule::min => Formula::Function {
-                    function: Function::Min,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_formula(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
-                },
-                Rule::max => Formula::Function {
-                    function: Function::Max,
-                    args: primary
-                        .into_inner()
-                        .map(|x| parse_to_formula(Pairs::single(x)))
-                        .collect::<Result<_, _>>()?,
-                },
+                Rule::coalesce => function_call(Function::Coalesce, primary)?,
+                Rule::min => function_call(Function::Min, primary)?,
+                Rule::max => function_call(Function::Max, primary)?,
+                Rule::avg => function_call(Function::Avg, primary)?,
                 rule => {
                     return Err(FormulaError::Internal(format!(
                         "expected atom, found {rule:?}"

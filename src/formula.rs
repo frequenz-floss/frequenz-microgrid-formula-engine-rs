@@ -134,6 +134,7 @@ pub enum Function {
     Coalesce,
     Min,
     Max,
+    Avg,
 }
 
 impl Function {
@@ -159,6 +160,28 @@ impl Function {
                     }
                 }
                 Ok(Reading::Known(None))
+            }
+            Function::Avg => {
+                let mut sum = T::zero();
+                let mut count = T::zero();
+                let mut unknown = false;
+                for arg in args {
+                    match arg.evaluate(source)? {
+                        Reading::Known(Some(value)) => {
+                            sum = sum + value;
+                            count = count + T::one();
+                        }
+                        Reading::Known(None) => {}
+                        Reading::Unknown => unknown = true,
+                    }
+                }
+                Ok(if unknown {
+                    Reading::Unknown
+                } else if count == T::zero() {
+                    Reading::Known(None)
+                } else {
+                    Reading::Known(Some(sum / count))
+                })
             }
             Function::Min | Function::Max => {
                 let mut acc = args[0].evaluate(source)?;

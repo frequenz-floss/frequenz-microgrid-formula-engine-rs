@@ -12,6 +12,7 @@ use crate::formula::Formula;
 use crate::{parse, Reading};
 
 mod evaluate;
+mod functions;
 mod keys;
 mod value_source;
 

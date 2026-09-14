@@ -18,11 +18,12 @@ op = _{ add | sub | mul | div }
     mul = { "*" }
     div = { "/" }
 
-func = _{ coalesce | min | max }
+func = _{ coalesce | min | max | avg }
 list = _{ expr ~ ("," ~ expr)* }
     coalesce = { "COALESCE(" ~ list ~ ")" }
     min = { "MIN(" ~ list ~ ")" }
     max = { "MAX(" ~ list ~ ")" }
+    avg = { "AVG(" ~ list ~ ")" }
 
 expr = { atom ~ (op ~ atom)* }
 WHITESPACE = _{ " " }
