@@ -1,7 +1,7 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
-//! Traits used in the FormulaEngine.
+//! Traits used to evaluate formulas.
 
 use std::ops::{Add, Div, Mul, Neg, Sub};
 

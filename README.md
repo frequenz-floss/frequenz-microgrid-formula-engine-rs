@@ -7,11 +7,11 @@ A library to create formulas over streamed data, primarily used for calculating 
 
 ## Usage
 
-The `FormulaEngine` can *only* work with _resampled_ component data streams. It has been designed to work with the following libraries:
+The formula engine can *only* work with _resampled_ component data streams. It has been designed to work with the following libraries:
 - [frequenz-resampling-rs](https://github.com/frequenz-floss/frequenz-resampling-rs) - A resampling library, which sends `None` values when data is missing. See [Handling Nulls and Missing Values](#handling-nulls-and-missing-values).
 - [frequenz-microgrid-component-graph-rs](https://github.com/frequenz-floss/frequenz-microgrid-component-graph-rs) - A component graph library, for generating formulas.
 
-The `FormulaEngine` can be created from a string formula using the `try_new` method. Formulas can contain component placeholders, represented by `#` followed by a number. To calculate the formula, provide an iterator of `Option` values where:
+A `Formula` is parsed from a string with `str::parse`. Formulas can contain component placeholders, represented by `#` followed by a number. To calculate the formula, provide an iterator of `Option` values where:
 - `None` represents a missing value
 - `Some(value)` represents a value
 
@@ -20,10 +20,10 @@ The result of the calculation will be an `Option` value.
 ### Example:
 
 ```rust
-use frequenz_formula_engine::{FormulaEngine, FormulaError};
+use frequenz_formula_engine::{Formula, FormulaError};
 
 fn main() -> Result<(), FormulaError> {
-    let fe = FormulaEngine::try_new("#0 + #1")?;
+    let fe: Formula<f32> = "#0 + #1".parse()?;
     assert_eq!(fe.calculate(&[Some(1.0), Some(2.0)])?, Some(3.0));
     Ok(())
 }
@@ -41,10 +41,10 @@ COALESCE(#1, 0)  // If #1 is None, it will return 0
 
 ### Error Handling
 
-The FormulaEngine may return errors for invalid formulas, incorrect argument counts, or division by zero. These are returned as a FormulaError. Handle them gracefully for robust applications.
+Parsing and `calculate` may return errors for invalid formulas, incorrect argument counts, or division by zero. These are returned as a FormulaError. Handle them gracefully for robust applications.
 
 ```Rust
-match FormulaEngine::try_new("#0 / #1") {
+match "#0 / #1".parse::<Formula<f32>>() {
     Ok(fe) => match fe.calculate(&[Some(10.0), Some(0.0)]) {
         Ok(result) => println!("Result: {:?}", result),
         Err(e) => println!("Calculation error: {:?}", e),

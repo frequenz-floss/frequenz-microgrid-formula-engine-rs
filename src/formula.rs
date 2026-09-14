@@ -9,36 +9,38 @@ use std::{
 use std::{ops::Neg, str::FromStr};
 
 #[derive(Debug)]
-pub enum Expr<T> {
+pub enum Formula<T> {
     Value(Option<T>),
-    UnaryMinus(Box<Expr<T>>),
+    UnaryMinus(Box<Formula<T>>),
     Op {
-        lhs: Box<Expr<T>>,
+        lhs: Box<Formula<T>>,
         op: Op,
-        rhs: Box<Expr<T>>,
+        rhs: Box<Formula<T>>,
     },
     Function {
         function: Function,
-        args: Vec<Expr<T>>,
+        args: Vec<Formula<T>>,
     },
     Component(u64),
 }
 
-impl<T: FromStr> Expr<T> where <T as FromStr>::Err: Debug {}
+impl<T: FromStr> Formula<T> where <T as FromStr>::Err: Debug {}
 
-impl<T: NumberLike<T> + PartialOrd> Expr<T> {
+impl<T: NumberLike<T> + PartialOrd> Formula<T> {
     pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
-            Expr::Value(value) => *value,
-            Expr::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
-            Expr::Op { lhs, op, rhs } => op.apply(lhs.calculate(values)?, rhs.calculate(values)?),
-            Expr::Function { function, args } => function.apply(
+            Formula::Value(value) => *value,
+            Formula::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
+            Formula::Op { lhs, op, rhs } => {
+                op.apply(lhs.calculate(values)?, rhs.calculate(values)?)
+            }
+            Formula::Function { function, args } => function.apply(
                 &args
                     .iter()
                     .map(|expr| expr.calculate(values))
                     .collect::<Result<Vec<Option<T>>, FormulaError>>()?,
             ),
-            Expr::Component(i) => values
+            Formula::Component(i) => values
                 .get(i)
                 .copied()
                 .ok_or(FormulaError("Placeholder out of bounds".to_string()))?,
@@ -47,18 +49,18 @@ impl<T: NumberLike<T> + PartialOrd> Expr<T> {
 
     pub fn components(&self) -> HashSet<u64> {
         match self {
-            Expr::Value(_) => HashSet::new(),
-            Expr::UnaryMinus(expr) => expr.components(),
-            Expr::Op { lhs, rhs, .. } => {
+            Formula::Value(_) => HashSet::new(),
+            Formula::UnaryMinus(expr) => expr.components(),
+            Formula::Op { lhs, rhs, .. } => {
                 let mut components = lhs.components();
                 components.extend(rhs.components());
                 components
             }
-            Expr::Function { args, .. } => args
+            Formula::Function { args, .. } => args
                 .iter()
-                .map(Expr::components)
+                .map(Formula::components)
                 .fold(HashSet::new(), |acc, x| acc.union(&x).copied().collect()),
-            Expr::Component(i) => HashSet::from([*i]),
+            Formula::Component(i) => HashSet::from([*i]),
         }
     }
 }
