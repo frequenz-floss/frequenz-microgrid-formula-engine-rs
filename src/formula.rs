@@ -10,7 +10,7 @@ use std::{ops::Neg, str::FromStr};
 
 #[derive(Debug)]
 pub enum Formula<T> {
-    Value(Option<T>),
+    Constant(Option<T>),
     UnaryMinus(Box<Formula<T>>),
     Op {
         lhs: Box<Formula<T>>,
@@ -29,7 +29,7 @@ impl<T: FromStr> Formula<T> where <T as FromStr>::Err: Debug {}
 impl<T: NumberLike<T> + PartialOrd> Formula<T> {
     pub fn calculate(&self, values: &HashMap<u64, Option<T>>) -> Result<Option<T>, FormulaError> {
         Ok(match self {
-            Formula::Value(value) => *value,
+            Formula::Constant(value) => *value,
             Formula::UnaryMinus(expr) => expr.calculate(values)?.map(Neg::neg),
             Formula::Op { lhs, op, rhs } => {
                 op.apply(lhs.calculate(values)?, rhs.calculate(values)?)
@@ -49,7 +49,7 @@ impl<T: NumberLike<T> + PartialOrd> Formula<T> {
 
     pub fn components(&self) -> HashSet<u64> {
         match self {
-            Formula::Value(_) => HashSet::new(),
+            Formula::Constant(_) => HashSet::new(),
             Formula::UnaryMinus(expr) => expr.components(),
             Formula::Op { lhs, rhs, .. } => {
                 let mut components = lhs.components();

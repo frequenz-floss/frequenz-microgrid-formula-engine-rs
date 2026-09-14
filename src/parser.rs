@@ -57,12 +57,12 @@ where
     PRATT_PARSER
         .map_primary(|primary| {
             Ok(match primary.as_rule() {
-                Rule::none => Formula::Value(None),
+                Rule::none => Formula::Constant(None),
                 Rule::expr => parse_to_formula(primary.into_inner())?,
                 Rule::num => primary
                     .as_str()
                     .parse()
-                    .map(|num| Formula::Value(Some(num)))
+                    .map(|num| Formula::Constant(Some(num)))
                     .map_err(|e| FormulaError(format!("Invalid number: {e:?}")))?,
                 Rule::component => primary
                     .as_str()
