@@ -218,13 +218,17 @@ impl<T, K> std::ops::Neg for Formula<T, K> {
 impl<T: Float, K> Formula<T, K> {
     /// Evaluates the formula, pulling component values from `source`.
     ///
+    /// The result is never NaN or infinite: a reading, a hand-built constant
+    /// or an intermediate result that is not finite is `None`, so `COALESCE`
+    /// and `AVG` move past it like any other missing value.
+    ///
     /// A `HashMap` from keys to `Option<T>` is a source; a key absent from
     /// the map reads as [`Reading::Unknown`].
     pub fn evaluate(
         &self,
         source: &mut impl ValueSource<T, K>,
     ) -> Result<Reading<T>, FormulaError> {
-        Ok(match self {
+        let reading = match self {
             Formula::Constant(value) => Reading::Known(*value),
             Formula::Component(id) => source.read(id),
             Formula::Neg(expr) => expr.evaluate(source)?.map(Neg::neg),
@@ -234,7 +238,8 @@ impl<T: Float, K> Formula<T, K> {
                 op.apply(lhs, rhs)
             }
             Formula::Function { function, args } => function.evaluate(args, source)?,
-        })
+        };
+        Ok(reading.and_then(|value| value.is_finite().then_some(value)))
     }
 }
 
@@ -248,20 +253,22 @@ pub enum Op {
     Sub,
     /// Multiplication.
     Mul,
-    /// Division. Division by zero yields `None` rather than infinity.
+    /// Division. Division by zero gives infinity or NaN, which evaluates
+    /// to `None`.
     Div,
 }
 
 impl Op {
     /// Combines two already-read operands. Both are read before this is
     /// called, so a `None` on one side never hides the other from the
-    /// source.
+    /// source. The result may be infinite or NaN; [`Formula::evaluate`]
+    /// turns that into `None`.
     pub(crate) fn apply<T: Float>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
-        lhs.zip(rhs).and_then(|(l, r)| match self {
-            Op::Add => Some(l + r),
-            Op::Sub => Some(l - r),
-            Op::Mul => Some(l * r),
-            Op::Div => (r != T::zero()).then(|| l / r),
+        lhs.zip(rhs).map(|(l, r)| match self {
+            Op::Add => l + r,
+            Op::Sub => l - r,
+            Op::Mul => l * r,
+            Op::Div => l / r,
         })
     }
 }
@@ -285,8 +292,8 @@ pub enum Function {
     /// arguments are skipped; when none has a value the result is `None`.
     /// An unknown argument makes the result unknown.
     Avg,
-    /// The square root of its single argument. A negative or NaN argument
-    /// yields `None`.
+    /// The square root of its single argument. A negative argument gives
+    /// NaN, which evaluates to `None`.
     Sqrt,
 }
 
@@ -321,9 +328,7 @@ impl Function {
                         args: args.len(),
                     });
                 }
-                Ok(args[0]
-                    .evaluate(source)?
-                    .and_then(|value| (value >= T::zero()).then(|| value.sqrt())))
+                Ok(args[0].evaluate(source)?.map(Float::sqrt))
             }
             Function::Avg => {
                 let mut sum = T::zero();

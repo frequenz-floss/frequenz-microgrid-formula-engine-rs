@@ -45,6 +45,11 @@ fn coalesce_reads_only_up_to_the_first_value() {
         reads("COALESCE(#1, #2)", &[(1, None), (2, Some(1.0))]).1,
         HashSet::from([1, 2])
     );
+    // A non-finite reading is `None`, so it does not stop the search.
+    assert_eq!(
+        reads("COALESCE(#1, #2)", &[(1, Some(f32::NAN)), (2, Some(1.0))]).1,
+        HashSet::from([1, 2])
+    );
 }
 
 #[test]

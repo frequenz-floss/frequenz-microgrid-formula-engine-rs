@@ -43,6 +43,9 @@ as `Unknown`.
 yields `Unknown` if any operand is, otherwise `None` if any operand is. The
 exception is `AVG`, which averages the operands that have a value and yields
 `None` only when none has; an unknown operand still makes it `Unknown`.
+A formula never evaluates to a NaN or infinite value: a reading, a hand-built
+constant or an intermediate result that is not finite is `None`, so `COALESCE`
+and `AVG` move past it like any other missing value.
 Because `evaluate` reads exactly the components it needs, a `ValueSource` that
 records the keys it is asked for learns which components the formula currently
 depends on.
@@ -67,8 +70,8 @@ Parsing returns a `FormulaError` for a formula that does not parse,
 including wrong function arity, a constant too large for the number type,
 and a formula deeper than `MAX_NESTING` or `MAX_DEPTH` allows. `evaluate` returns an error only for a
 structurally invalid hand-built expression, such as a function with no
-arguments. Missing data never errors: division by zero and the square root of
-a negative number yield `None`.
+arguments. Missing data never errors: division by zero, the square root of a
+negative number, and any NaN or infinite value yield `None`.
 
 ## Formula Syntax Overview
 

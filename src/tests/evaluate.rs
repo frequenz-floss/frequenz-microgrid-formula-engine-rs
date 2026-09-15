@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use super::eval;
+use super::{calc, eval};
 use crate::formula::{Formula, Function};
 use crate::{FormulaError, Reading};
 
@@ -80,5 +80,52 @@ fn zero_argument_function_is_a_structural_error() {
             function: Function::Coalesce,
             args: 0
         })
+    );
+}
+
+#[test]
+fn non_finite_readings_are_none() {
+    for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        assert_eq!(
+            eval("#1", &[(1, Some(value))]),
+            Reading::Known(None),
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn non_finite_constants_are_none() {
+    // The grammar has no NaN or infinity literal, but a builder can make one.
+    for constant in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        assert_eq!(
+            calc(&Formula::Constant(Some(constant)), HashMap::new()),
+            None,
+            "{constant}"
+        );
+    }
+}
+
+#[test]
+fn non_finite_results_are_none() {
+    // `f32` overflows to infinity, which no node ever yields.
+    assert_eq!(
+        eval("#1 * #2", &[(1, Some(1e30)), (2, Some(1e30))]),
+        Reading::Known(None)
+    );
+}
+
+#[test]
+fn coalesce_moves_past_a_non_finite_value() {
+    assert_eq!(
+        eval("COALESCE(#1, #2)", &[(1, Some(f32::NAN)), (2, Some(1.0))]),
+        Reading::Known(Some(1.0))
+    );
+    assert_eq!(
+        eval(
+            "COALESCE(#1 * #2, 0.0)",
+            &[(1, Some(1e30)), (2, Some(1e30))]
+        ),
+        Reading::Known(Some(0.0))
     );
 }

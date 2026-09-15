@@ -54,28 +54,28 @@ fn sqrt_of_values() {
 }
 
 #[test]
-fn min_max_with_nan_keep_the_incoming_value_over_a_nan_accumulator() {
-    // `<` and `>` are false whenever either side is NaN, so the fold falls
-    // through to its `_ => x` arm: a NaN accumulator is always replaced by
-    // the next value, but a NaN arriving as `x` always wins.
-    // The grammar has no NaN literal, so build it through a HashMap value.
-    assert_eq!(
-        eval("MIN(#1, #2)", &[(1, Some(f32::NAN)), (2, Some(1.0))]),
-        Reading::Known(Some(1.0))
-    );
-    assert_eq!(
-        eval("MAX(#1, #2)", &[(1, Some(f32::NAN)), (2, Some(1.0))]),
-        Reading::Known(Some(1.0))
-    );
+fn min_max_are_none_when_an_argument_is_not_finite() {
+    // A non-finite reading is `None` at the leaf, and MIN and MAX are
+    // strict, so a NaN argument yields `None` in either position. The
+    // grammar has no NaN literal, so build it through a HashMap value.
+    for formula in ["MIN(#1, #2)", "MAX(#1, #2)", "MIN(#2, #1)", "MAX(#2, #1)"] {
+        assert_eq!(
+            eval(formula, &[(1, Some(f32::NAN)), (2, Some(1.0))]),
+            Reading::Known(None),
+            "{formula}"
+        );
+    }
+}
 
-    match eval("MIN(#1, #2)", &[(1, Some(1.0)), (2, Some(f32::NAN))]) {
-        Reading::Known(Some(value)) => assert!(value.is_nan()),
-        other => panic!("expected a NaN value, got {other:?}"),
-    }
-    match eval("MAX(#1, #2)", &[(1, Some(1.0)), (2, Some(f32::NAN))]) {
-        Reading::Known(Some(value)) => assert!(value.is_nan()),
-        other => panic!("expected a NaN value, got {other:?}"),
-    }
+#[test]
+fn avg_skips_non_finite_arguments() {
+    assert_eq!(
+        eval(
+            "AVG(#1, #2, #3)",
+            &[(1, Some(f32::NAN)), (2, Some(1.0)), (3, Some(3.0))]
+        ),
+        Reading::Known(Some(2.0))
+    );
 }
 
 #[test]

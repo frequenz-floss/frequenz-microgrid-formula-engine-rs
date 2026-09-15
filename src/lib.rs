@@ -26,6 +26,10 @@ if any is. The exception is `AVG`, which averages the operands that have
 a value and yields `None` only when none has; an unknown operand still
 makes it `Unknown`.
 
+A formula never evaluates to a NaN or infinite value. A reading, a hand-built
+constant or an intermediate result that is not finite is `None`, so `COALESCE`
+and `AVG` move past it like any other missing value.
+
 A `HashMap<K, Option<T>>` is a `ValueSource` in which an absent key reads
 as `Unknown`.
 
