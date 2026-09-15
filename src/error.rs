@@ -1,15 +1,71 @@
 // License: MIT
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
-use crate::parser::Rule;
-use std::{error::Error, fmt::Display};
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 
-#[derive(Debug)]
-pub struct FormulaError(pub String);
+use crate::formula::Function;
+use crate::parser::Rule;
+
+/// An error parsing a formula string or evaluating a structurally invalid
+/// formula, such as a hand-built function call with the wrong number of
+/// arguments. Missing or `None` data never produces a `FormulaError`.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq)]
+pub enum FormulaError {
+    /// The formula does not match the grammar; the message comes from the
+    /// parser.
+    InvalidSyntax(String),
+    /// A numeric constant the number type cannot parse.
+    InvalidConstant(String),
+    /// A numeric constant larger than the number type can hold.
+    ConstantOutOfRange(String),
+    /// A component id that does not fit `u64`.
+    InvalidComponentId(String),
+    /// Parentheses or function calls nested deeper than the limit.
+    NestedTooDeep {
+        /// The nesting limit that was exceeded.
+        limit: usize,
+    },
+    /// A tree deeper than the limit, counting operators.
+    TooDeep {
+        /// The depth limit that was exceeded.
+        limit: usize,
+    },
+    /// A function call with a number of arguments it does not take.
+    WrongArity {
+        /// The function that was called.
+        function: Function,
+        /// The number of arguments it was given.
+        args: usize,
+    },
+    /// A parser invariant did not hold, which is a bug in this crate.
+    InternalError(String),
+}
 
 impl Display for FormulaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            FormulaError::InvalidSyntax(message) => f.write_str(message),
+            FormulaError::InvalidConstant(literal) => write!(f, "Invalid number: {literal}"),
+            FormulaError::ConstantOutOfRange(literal) => {
+                write!(f, "Number out of range: {literal}")
+            }
+            FormulaError::InvalidComponentId(literal) => {
+                write!(f, "Invalid component id: {literal}")
+            }
+            FormulaError::NestedTooDeep { limit } => {
+                write!(f, "Formula nests deeper than {limit} levels")
+            }
+            FormulaError::TooDeep { limit } => write!(f, "Formula is deeper than {limit} levels"),
+            FormulaError::WrongArity { function, args: 0 } => {
+                write!(f, "{function} requires at least one argument")
+            }
+            FormulaError::WrongArity { function, .. } => {
+                write!(f, "{function} takes exactly one argument")
+            }
+            FormulaError::InternalError(message) => write!(f, "internal parser error: {message}"),
+        }
     }
 }
 
@@ -17,12 +73,6 @@ impl Error for FormulaError {}
 
 impl From<pest::error::Error<Rule>> for FormulaError {
     fn from(err: pest::error::Error<Rule>) -> Self {
-        FormulaError(format!("{err}"))
-    }
-}
-
-impl From<std::num::ParseFloatError> for FormulaError {
-    fn from(err: std::num::ParseFloatError) -> Self {
-        FormulaError(format!("{err}"))
+        FormulaError::InvalidSyntax(err.to_string())
     }
 }

@@ -13,7 +13,7 @@ path = "src/lib.rs"
 [dependencies]
 pest = "2.6"
 pest_derive = "2.6"
-lazy_static = "1.5"
+num-traits = "0.2"
 
 [dev-dependencies]
 rand = "0.8"
