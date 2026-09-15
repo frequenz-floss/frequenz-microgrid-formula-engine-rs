@@ -299,7 +299,7 @@ impl Function {
         source: &mut impl ValueSource<T, K>,
     ) -> Result<Reading<T>, FormulaError> {
         if args.is_empty() {
-            return Err(FormulaError::Arity {
+            return Err(FormulaError::WrongArity {
                 function: *self,
                 args: args.len(),
             });
@@ -316,7 +316,7 @@ impl Function {
             }
             Function::Sqrt => {
                 if args.len() != 1 {
-                    return Err(FormulaError::Arity {
+                    return Err(FormulaError::WrongArity {
                         function: *self,
                         args: args.len(),
                     });

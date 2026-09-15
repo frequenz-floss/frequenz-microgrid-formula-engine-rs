@@ -15,11 +15,11 @@ use crate::parser::Rule;
 pub enum FormulaError {
     /// The formula does not match the grammar; the message comes from the
     /// parser.
-    Syntax(String),
+    InvalidSyntax(String),
     /// A numeric constant the number type cannot parse.
-    InvalidNumber(String),
+    InvalidConstant(String),
     /// A numeric constant larger than the number type can hold.
-    NumberOutOfRange(String),
+    ConstantOutOfRange(String),
     /// A component id that does not fit `u64`.
     InvalidComponentId(String),
     /// Parentheses or function calls nested deeper than the limit.
@@ -33,22 +33,22 @@ pub enum FormulaError {
         limit: usize,
     },
     /// A function call with a number of arguments it does not take.
-    Arity {
+    WrongArity {
         /// The function that was called.
         function: Function,
         /// The number of arguments it was given.
         args: usize,
     },
     /// A parser invariant did not hold, which is a bug in this crate.
-    Internal(String),
+    InternalError(String),
 }
 
 impl Display for FormulaError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            FormulaError::Syntax(message) => f.write_str(message),
-            FormulaError::InvalidNumber(literal) => write!(f, "Invalid number: {literal}"),
-            FormulaError::NumberOutOfRange(literal) => {
+            FormulaError::InvalidSyntax(message) => f.write_str(message),
+            FormulaError::InvalidConstant(literal) => write!(f, "Invalid number: {literal}"),
+            FormulaError::ConstantOutOfRange(literal) => {
                 write!(f, "Number out of range: {literal}")
             }
             FormulaError::InvalidComponentId(literal) => {
@@ -58,13 +58,13 @@ impl Display for FormulaError {
                 write!(f, "Formula nests deeper than {limit} levels")
             }
             FormulaError::TooDeep { limit } => write!(f, "Formula is deeper than {limit} levels"),
-            FormulaError::Arity { function, args: 0 } => {
+            FormulaError::WrongArity { function, args: 0 } => {
                 write!(f, "{function} requires at least one argument")
             }
-            FormulaError::Arity { function, .. } => {
+            FormulaError::WrongArity { function, .. } => {
                 write!(f, "{function} takes exactly one argument")
             }
-            FormulaError::Internal(message) => write!(f, "internal parser error: {message}"),
+            FormulaError::InternalError(message) => write!(f, "internal parser error: {message}"),
         }
     }
 }
@@ -73,6 +73,6 @@ impl Error for FormulaError {}
 
 impl From<pest::error::Error<Rule>> for FormulaError {
     fn from(err: pest::error::Error<Rule>) -> Self {
-        FormulaError::Syntax(err.to_string())
+        FormulaError::InvalidSyntax(err.to_string())
     }
 }

@@ -93,7 +93,7 @@ fn sqrt_with_two_args_is_a_structural_error() {
     };
     assert_eq!(
         expr.evaluate(&mut HashMap::<u64, Option<f32>>::new()),
-        Err(FormulaError::Arity {
+        Err(FormulaError::WrongArity {
             function: Function::Sqrt,
             args: 2
         })

@@ -115,9 +115,11 @@ where
                     let num: T = primary
                         .as_str()
                         .parse()
-                        .map_err(|_| FormulaError::InvalidNumber(primary.as_str().to_string()))?;
+                        .map_err(|_| FormulaError::InvalidConstant(primary.as_str().to_string()))?;
                     if num > T::max_value() {
-                        return Err(FormulaError::NumberOutOfRange(primary.as_str().to_string()));
+                        return Err(FormulaError::ConstantOutOfRange(
+                            primary.as_str().to_string(),
+                        ));
                     }
                     Formula::Constant(Some(num))
                 }
@@ -133,7 +135,7 @@ where
                 Rule::avg => function_call(Function::Avg, primary)?,
                 Rule::sqrt => function_call(Function::Sqrt, primary)?,
                 rule => {
-                    return Err(FormulaError::Internal(format!(
+                    return Err(FormulaError::InternalError(format!(
                         "expected atom, found {rule:?}"
                     )))
                 }
@@ -153,7 +155,7 @@ where
                         Rule::mul => Op::Mul,
                         Rule::div => Op::Div,
                         rule => {
-                            return Err(FormulaError::Internal(format!(
+                            return Err(FormulaError::InternalError(format!(
                                 "expected operator, found {rule:?}"
                             )))
                         }
@@ -161,7 +163,7 @@ where
                     rhs: Box::new(rhs),
                 })
             } else {
-                Err(FormulaError::Internal("internal error".to_string()))
+                Err(FormulaError::InternalError("internal error".to_string()))
             }
         })
         .map_prefix(|op, rhs| match op.as_rule() {
@@ -172,13 +174,13 @@ where
                     rhs
                 }
             }
-            rule => Err(FormulaError::Internal(format!(
+            rule => Err(FormulaError::InternalError(format!(
                 "unexpected prefix rule: {rule:?}"
             ))),
         })
         .map_postfix(|lhs, op| match op.as_rule() {
             Rule::EOI => lhs,
-            rule => Err(FormulaError::Internal(format!(
+            rule => Err(FormulaError::InternalError(format!(
                 "unexpected postfix rule: {rule:?}"
             ))),
         })

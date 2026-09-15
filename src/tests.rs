@@ -447,7 +447,7 @@ fn test_large_microgrid_formula_2_fuzz() {
 fn test_constant_out_of_range_is_a_parse_error() {
     let big = "1".repeat(40);
     let err = crate::parse::<f32>(&big).unwrap_err();
-    assert_eq!(err, FormulaError::NumberOutOfRange(big.clone()));
+    assert_eq!(err, FormulaError::ConstantOutOfRange(big.clone()));
     assert_eq!(err.to_string(), format!("Number out of range: {big}"));
     assert!(crate::parse::<f64>(&big).is_ok());
     let huge = "9".repeat(400);
@@ -496,6 +496,6 @@ fn test_invalid_literals_are_named_in_the_error() {
         "Invalid component id: #99999999999999999999"
     );
     let err = crate::parse::<f32>("1.2.3").unwrap_err();
-    assert_eq!(err, FormulaError::InvalidNumber("1.2.3".to_string()));
+    assert_eq!(err, FormulaError::InvalidConstant("1.2.3".to_string()));
     assert_eq!(err.to_string(), "Invalid number: 1.2.3");
 }

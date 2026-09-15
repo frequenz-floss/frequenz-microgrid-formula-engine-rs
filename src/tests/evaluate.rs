@@ -76,7 +76,7 @@ fn zero_argument_function_is_a_structural_error() {
     let mut source = HashMap::<u64, Option<f32>>::new();
     assert_eq!(
         expr.evaluate(&mut source),
-        Err(FormulaError::Arity {
+        Err(FormulaError::WrongArity {
             function: Function::Coalesce,
             args: 0
         })
