@@ -12,7 +12,7 @@ use std::sync::LazyLock;
 
 use crate::formula::{Formula, Function, Op};
 use crate::FormulaError;
-use num_traits::real::Real;
+use num_traits::Float;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -38,7 +38,7 @@ pub const MAX_DEPTH: usize = 1024;
 
 pub(crate) fn parse<T>(formula: &str) -> Result<Formula<T>, FormulaError>
 where
-    T: FromStr + Real,
+    T: FromStr + Float,
 {
     let (nesting, operators) = shape(formula);
     if nesting > MAX_NESTING {
@@ -57,7 +57,7 @@ where
 /// levels once its operators are counted.
 impl<T> FromStr for Formula<T>
 where
-    T: FromStr + Real,
+    T: FromStr + Float,
 {
     type Err = FormulaError;
 
@@ -91,7 +91,7 @@ fn shape(formula: &str) -> (usize, usize) {
 /// Builds `function` over the argument expressions inside a function rule.
 fn function_call<T>(function: Function, call: Pair<Rule>) -> Result<Formula<T>, FormulaError>
 where
-    T: FromStr + Real,
+    T: FromStr + Float,
 {
     Ok(Formula::Function {
         function,
@@ -104,7 +104,7 @@ where
 
 fn parse_to_formula<T>(pairs: Pairs<Rule>) -> Result<Formula<T>, FormulaError>
 where
-    T: FromStr + Real,
+    T: FromStr + Float,
 {
     PRATT_PARSER
         .map_primary(|primary| {
@@ -116,7 +116,7 @@ where
                         .as_str()
                         .parse()
                         .map_err(|_| FormulaError::InvalidConstant(primary.as_str().to_string()))?;
-                    if num > T::max_value() {
+                    if !num.is_finite() {
                         return Err(FormulaError::ConstantOutOfRange(
                             primary.as_str().to_string(),
                         ));

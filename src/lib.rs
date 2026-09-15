@@ -57,7 +57,7 @@ mod value_source;
 
 pub use error::FormulaError;
 pub use formula::{Formula, Function, Op};
-pub use num_traits::real::Real;
+pub use num_traits::Float;
 #[cfg(test)]
 pub(crate) use parser::parse;
 pub use parser::{MAX_DEPTH, MAX_NESTING};

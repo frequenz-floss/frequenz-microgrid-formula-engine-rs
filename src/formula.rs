@@ -3,7 +3,7 @@
 
 use crate::error::FormulaError;
 use crate::value_source::{Reading, ValueSource};
-use num_traits::real::Real;
+use num_traits::Float;
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::ops::Neg;
@@ -215,7 +215,7 @@ impl<T, K> std::ops::Neg for Formula<T, K> {
     }
 }
 
-impl<T: Real, K> Formula<T, K> {
+impl<T: Float, K> Formula<T, K> {
     /// Evaluates the formula, pulling component values from `source`.
     ///
     /// A `HashMap` from keys to `Option<T>` is a source; a key absent from
@@ -256,7 +256,7 @@ impl Op {
     /// Combines two already-read operands. Both are read before this is
     /// called, so a `None` on one side never hides the other from the
     /// source.
-    pub(crate) fn apply<T: Real>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
+    pub(crate) fn apply<T: Float>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
         lhs.zip(rhs).and_then(|(l, r)| match self {
             Op::Add => Some(l + r),
             Op::Sub => Some(l - r),
@@ -293,7 +293,7 @@ pub enum Function {
 impl Function {
     /// Evaluates a function call. `COALESCE` reads its arguments lazily;
     /// every other function reads all of them first.
-    pub(crate) fn evaluate<T: Real, K>(
+    pub(crate) fn evaluate<T: Float, K>(
         &self,
         args: &[Formula<T, K>],
         source: &mut impl ValueSource<T, K>,
