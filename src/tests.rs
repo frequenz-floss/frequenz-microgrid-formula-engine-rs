@@ -467,7 +467,7 @@ fn test_constant_out_of_range_is_a_parse_error() {
 }
 
 #[test]
-fn test_formulas_deeper_than_the_limits_are_a_parse_error() {
+fn test_formulas_nested_deeper_than_the_limit_are_a_parse_error() {
     let nested = |n: usize| format!("{}#1{}", "(".repeat(n), ")".repeat(n));
     assert!(crate::parse::<f32>(&nested(crate::MAX_NESTING)).is_ok());
     let err = crate::parse::<f32>(&nested(crate::MAX_NESTING + 1)).unwrap_err();
@@ -476,15 +476,13 @@ fn test_formulas_deeper_than_the_limits_are_a_parse_error() {
     let coalesced = |n: usize| format!("{}#1{}", "COALESCE(".repeat(n), ", 0)".repeat(n));
     assert!(crate::parse::<f32>(&coalesced(crate::MAX_NESTING + 1)).is_err());
 
-    // Every operator counts as a level, whichever it is.
-    let chain = |n: usize| {
-        let ops = ["+", "-", "*", "/"];
-        (1..n).fold("#1".to_string(), |s, i| format!("{s} {} #1", ops[i % 4]))
-    };
-    assert!(crate::parse::<f32>(&chain(crate::MAX_DEPTH)).is_ok());
-    let err = crate::parse::<f32>(&chain(crate::MAX_DEPTH + 1)).unwrap_err();
-    assert_eq!(err, FormulaError::TooDeep { limit: 1024 });
-    assert_eq!(err.to_string(), "Formula is deeper than 1024 levels");
+    // Operators do not count towards the limit, whichever they are.
+    let chain = vec!["#1 + #1 - #1 * #1 / #1"; 25_000].join(" + ");
+    assert!(crate::parse::<f32>(&chain).is_ok());
+
+    // The grammar takes at most one unary `-` before an operand, so `-(-#1)`
+    // needs parentheses, and those count towards the limit.
+    assert!(crate::parse::<f32>("--#1").is_err());
 
     // Siblings do not nest: closing a group must give its level back, and
     // a deep group followed by a shallow one is still too deep.
@@ -492,6 +490,20 @@ fn test_formulas_deeper_than_the_limits_are_a_parse_error() {
     assert!(crate::parse::<f32>(&siblings).is_ok());
     let deep_then_shallow = format!("{} + (#1)", nested(crate::MAX_NESTING + 1));
     assert!(crate::parse::<f32>(&deep_then_shallow).is_err());
+}
+
+#[test]
+fn test_the_deepest_formula_that_parses_can_be_walked() {
+    // Each level of nesting adds a sum, a product, a negation and a function
+    // call. No single `(` can add more tree levels than that.
+    let n = crate::MAX_NESTING;
+    let formula = format!("{}#1{}", "#1 + #1 * -COALESCE(".repeat(n), ")".repeat(n));
+    let fe = parsed(&formula);
+    let expected = (0..n).fold(1.0, |x, _| 1.0 - x);
+    assert_eq!(calc(&fe, HashMap::from([(1, Some(1.0))])), Some(expected));
+    assert_eq!(fe.to_string(), formula);
+    assert_eq!(fe.clone(), fe);
+    assert_eq!(fe.map_components(|id| id + 1).components(), [2].into());
 }
 
 #[test]
