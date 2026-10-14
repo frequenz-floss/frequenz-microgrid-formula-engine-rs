@@ -10,7 +10,7 @@ use pest_derive::Parser;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use crate::formula::{Formula, Function, Op};
+use crate::formula::{Formula, Function};
 use crate::FormulaError;
 use num_traits::Float;
 
@@ -142,38 +142,21 @@ where
             })
         })
         .map_infix(|lhs, op, rhs| {
-            if lhs.is_err() {
-                lhs
-            } else if rhs.is_err() {
-                rhs
-            } else if let (Ok(lhs), Ok(rhs)) = (lhs, rhs) {
-                Ok(Formula::Op {
-                    lhs: Box::new(lhs),
-                    op: match op.as_rule() {
-                        Rule::add => Op::Add,
-                        Rule::sub => Op::Sub,
-                        Rule::mul => Op::Mul,
-                        Rule::div => Op::Div,
-                        rule => {
-                            return Err(FormulaError::InternalError(format!(
-                                "expected operator, found {rule:?}"
-                            )))
-                        }
-                    },
-                    rhs: Box::new(rhs),
-                })
-            } else {
-                Err(FormulaError::InternalError("internal error".to_string()))
-            }
+            let (lhs, rhs) = (lhs?, rhs?);
+            Ok(match op.as_rule() {
+                Rule::add => lhs + rhs,
+                Rule::sub => lhs - rhs,
+                Rule::mul => lhs * rhs,
+                Rule::div => lhs / rhs,
+                rule => {
+                    return Err(FormulaError::InternalError(format!(
+                        "expected operator, found {rule:?}"
+                    )))
+                }
+            })
         })
         .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::unary_minus => {
-                if let Ok(rhs) = rhs {
-                    Ok(Formula::Neg(Box::new(rhs)))
-                } else {
-                    rhs
-                }
-            }
+            Rule::unary_minus => Ok(-rhs?),
             rule => Err(FormulaError::InternalError(format!(
                 "unexpected prefix rule: {rule:?}"
             ))),
