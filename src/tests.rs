@@ -92,6 +92,16 @@ impl Sub for OptionW<f32> {
     }
 }
 
+/// The component `#id`.
+fn c(id: u64) -> Formula<f32> {
+    Formula::Component(id)
+}
+
+/// The constant `v`.
+fn k(v: f32) -> Formula<f32> {
+    Formula::Constant(Some(v))
+}
+
 /// Parses `formula` with `f32` constants and `u64` keys.
 fn parsed(formula: &str) -> Formula<f32> {
     parse::<f32>(formula).unwrap()

@@ -27,7 +27,7 @@ pub enum FormulaError {
         /// The nesting limit that was exceeded.
         limit: usize,
     },
-    /// A tree deeper than the limit, counting operators.
+    /// More levels of nesting plus operators than the limit.
     TooDeep {
         /// The depth limit that was exceeded.
         limit: usize,

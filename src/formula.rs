@@ -16,9 +16,19 @@ use std::ops::Neg;
 /// from [`Reading::Unknown`](crate::Reading::Unknown), meaning the value
 /// is not known yet.
 ///
-/// Every walk over the tree recurses once per level. Parsing bounds the
-/// depth by [`MAX_DEPTH`](crate::MAX_DEPTH); a hand-built formula
-/// deeper than that may overflow the stack.
+/// Every walk over the tree recurses once per level. A chain of `+` and `-`, or
+/// of `*` and `/`, is one node however long it is. So each level of parentheses
+/// or function calls adds only a few levels to a parsed formula, and parsing
+/// bounds that nesting by [`MAX_NESTING`](crate::MAX_NESTING).
+///
+/// Each operator or builder call adds at most one level above its deepest
+/// operand. When `a` is already a sum, `a + b` and `a - b` add `b` to the chain
+/// of `a` instead of wrapping `a`. `a * b` and `a / b` do the same when `a` is
+/// a product.
+///
+/// A formula that wraps the previous result again and again can still grow
+/// deep enough to overflow the stack. Examples are `total = x + total` and
+/// `total = total * x + y`.
 ///
 /// `Display` round-trips through `str::parse` for `K = u64` keys and finite,
 /// non-negative constants: `expr.to_string().parse() == Ok(expr)`.
@@ -30,6 +40,8 @@ use std::ops::Neg;
 /// - a constant is negative — `Constant(Some(-2.0))` renders as `-2`, which
 ///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`. And
 ///   `Neg(Constant(Some(-2.0)))` renders as `--2`, which does not parse.
+/// - a hand-built `Sum` starts with a `Sum`, or a `Product` with a `Product` —
+///   the two render as one flat chain, which re-parses as a single node.
 /// - a hand-built `Sum` or `Product` has an empty `rest` — it renders as its
 ///   first operand alone, but keeps the parentheses a longer chain would have.
 ///   A `Product` with `first: #1 + #2` and an empty `rest` renders as
@@ -219,12 +231,26 @@ impl<T, K> Formula<T, K> {
         }
     }
 
-    fn binary(self, op: Op, rhs: Self) -> Self {
-        Formula::Op {
-            lhs: Box::new(self),
-            op,
-            rhs: Box::new(rhs),
-        }
+    /// `self op rhs`, appending to `self` if it is already a sum, so that a
+    /// chain stays one node.
+    fn sum(self, op: SumOp, rhs: Self) -> Self {
+        let (first, mut rest) = match self {
+            Formula::Sum { first, rest } => (first, rest),
+            lhs => (Box::new(lhs), Vec::new()),
+        };
+        rest.push((op, rhs));
+        Formula::Sum { first, rest }
+    }
+
+    /// `self op rhs`, appending to `self` if it is already a product, so that a
+    /// chain stays one node.
+    fn product(self, op: ProductOp, rhs: Self) -> Self {
+        let (first, mut rest) = match self {
+            Formula::Product { first, rest } => (first, rest),
+            lhs => (Box::new(lhs), Vec::new()),
+        };
+        rest.push((op, rhs));
+        Formula::Product { first, rest }
     }
 }
 
@@ -232,7 +258,7 @@ impl<T, K> std::ops::Add for Formula<T, K> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        self.binary(Op::Add, rhs)
+        self.sum(SumOp::Add, rhs)
     }
 }
 
@@ -240,7 +266,7 @@ impl<T, K> std::ops::Sub for Formula<T, K> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        self.binary(Op::Sub, rhs)
+        self.sum(SumOp::Sub, rhs)
     }
 }
 
@@ -248,7 +274,7 @@ impl<T, K> std::ops::Mul for Formula<T, K> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
-        self.binary(Op::Mul, rhs)
+        self.product(ProductOp::Mul, rhs)
     }
 }
 
@@ -256,7 +282,7 @@ impl<T, K> std::ops::Div for Formula<T, K> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self {
-        self.binary(Op::Div, rhs)
+        self.product(ProductOp::Div, rhs)
     }
 }
 

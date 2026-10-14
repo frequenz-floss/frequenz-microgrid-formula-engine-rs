@@ -32,8 +32,7 @@ static PRATT_PARSER: LazyLock<PrattParser<Rule>> = LazyLock::new(|| {
 /// The deepest nesting of parentheses and function calls parsing accepts.
 pub const MAX_NESTING: usize = 128;
 
-/// The deepest tree parsing builds, counting every operator as a level on
-/// top of the nesting.
+/// The most levels of nesting plus operators a formula may have.
 pub const MAX_DEPTH: usize = 1024;
 
 pub(crate) fn parse<T>(formula: &str) -> Result<Formula<T>, FormulaError>
@@ -67,9 +66,7 @@ where
 }
 
 /// The deepest run of unclosed `(` in `formula`, and its operator count.
-/// Every function call and parenthesised group opens a `(`, and a chain of
-/// operators nests one level per operator, so together they bound the depth
-/// of the parsed tree and of every recursive walk over it.
+/// Every function call and parenthesised group opens a `(`.
 fn shape(formula: &str) -> (usize, usize) {
     let mut depth = 0usize;
     let mut deepest = 0usize;

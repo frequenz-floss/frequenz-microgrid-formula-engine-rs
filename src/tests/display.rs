@@ -1,8 +1,8 @@
 // License: MIT
 // Copyright © 2026 Frequenz Energy-as-a-Service GmbH
 
-use super::parsed;
-use crate::formula::Formula;
+use super::{c, parsed};
+use crate::formula::{Formula, ProductOp, SumOp};
 use crate::parse;
 
 fn shown(formula: &str) -> String {
@@ -18,6 +18,8 @@ fn display_parenthesises_only_where_precedence_or_associativity_requires() {
     assert_eq!(shown("#1 - #2 - #3"), "#1 - #2 - #3");
     assert_eq!(shown("#1 - (#2 - #3)"), "#1 - (#2 - #3)");
     assert_eq!(shown("#1 + (#2 + #3)"), "#1 + (#2 + #3)");
+    assert_eq!(shown("#1 + #2 - (#3 - #4)"), "#1 + #2 - (#3 - #4)");
+    assert_eq!(shown("#1 * #2 / (#3 / #4)"), "#1 * #2 / (#3 / #4)");
     assert_eq!(shown("-#1 * #2"), "-#1 * #2");
     assert_eq!(shown("#1 - -#2"), "#1 - -#2");
     assert_eq!(shown("-(#1 + #2)"), "-(#1 + #2)");
@@ -29,9 +31,46 @@ fn display_parenthesises_only_where_precedence_or_associativity_requires() {
 
 #[test]
 fn display_keeps_long_chains_flat() {
-    let chain = vec!["#1"; crate::MAX_DEPTH].join(" - ");
-    assert_eq!(shown(&chain), chain);
-    assert_eq!(parsed(&shown(&chain)), parsed(&chain));
+    for op in [" - ", " / "] {
+        let chain = vec!["#1"; crate::MAX_DEPTH].join(op);
+        assert_eq!(shown(&chain), chain);
+        assert_eq!(parsed(&shown(&chain)), parsed(&chain));
+    }
+}
+
+#[test]
+fn display_flattens_hand_built_nested_chains() {
+    let nested_sum = Formula::Sum {
+        first: Box::new(c(1) + c(2)),
+        rest: vec![(SumOp::Sub, c(3))],
+    };
+    assert_eq!(nested_sum.to_string(), "#1 + #2 - #3");
+    assert_eq!(parsed(&nested_sum.to_string()), c(1) + c(2) - c(3));
+    let nested_product = Formula::Product {
+        first: Box::new(c(1) * c(2)),
+        rest: vec![(ProductOp::Div, c(3))],
+    };
+    assert_eq!(nested_product.to_string(), "#1 * #2 / #3");
+    assert_eq!(parsed(&nested_product.to_string()), c(1) * c(2) / c(3));
+}
+
+#[test]
+fn display_renders_an_empty_chain_as_its_first_operand() {
+    let empty_sum = Formula::Sum {
+        first: Box::new(c(2)),
+        rest: vec![],
+    };
+    assert_eq!(empty_sum.to_string(), "#2");
+    let product = Formula::Product {
+        first: Box::new(c(1)),
+        rest: vec![(ProductOp::Mul, empty_sum)],
+    };
+    assert_eq!(product.to_string(), "#1 * (#2)");
+    let empty_product = Formula::Product {
+        first: Box::new(c(1) + c(2)),
+        rest: vec![],
+    };
+    assert_eq!(empty_product.to_string(), "(#1 + #2)");
 }
 
 #[test]
