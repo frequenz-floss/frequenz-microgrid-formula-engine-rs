@@ -28,7 +28,8 @@ use std::ops::Neg;
 ///   digits does not parse at all.
 /// - a constant is `NaN` or infinite — these do not parse back.
 /// - a constant is negative — `Constant(Some(-2.0))` renders as `-2`, which
-///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`.
+///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`. And
+///   `Neg(Constant(Some(-2.0)))` renders as `--2`, which does not parse.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Formula<T, K = u64> {
     /// A constant, or `None` for the known-missing constant.

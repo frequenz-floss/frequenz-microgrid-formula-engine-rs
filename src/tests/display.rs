@@ -21,6 +21,8 @@ fn display_parenthesises_only_where_precedence_or_associativity_requires() {
     assert_eq!(shown("-#1 * #2"), "-#1 * #2");
     assert_eq!(shown("#1 - -#2"), "#1 - -#2");
     assert_eq!(shown("-(#1 + #2)"), "-(#1 + #2)");
+    assert_eq!(shown("-(#1 * #2)"), "-(#1 * #2)");
+    assert_eq!(shown("#1 * -#2"), "#1 * -#2");
     assert_eq!(shown("-#1"), "-#1");
     assert_eq!(shown("-(-#1)"), "-(-#1)");
 }
@@ -44,6 +46,9 @@ fn display_does_not_round_trip_other_keys_or_negative_constants() {
         parsed(&negative.to_string()),
         Formula::Neg(Box::new(Formula::Constant(Some(2.0))))
     );
+    let negated = -negative;
+    assert_eq!(negated.to_string(), "--2");
+    assert!(parse::<f32>(&negated.to_string()).is_err());
 }
 
 #[test]

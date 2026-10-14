@@ -44,13 +44,12 @@ impl<T: Display, K: Display> Display for Formula<T, K> {
             Formula::Component(key) => write!(f, "#{key}"),
             Formula::Neg(inner) => {
                 f.write_str("-")?;
-                let nested = matches!(**inner, Formula::Op { .. } | Formula::Neg(_));
-                inner.fmt_wrapped(f, nested)
+                self.fmt_operand(f, inner, true)
             }
             Formula::Op { lhs, op, rhs } => {
-                lhs.fmt_wrapped(f, lhs.needs_parens(*op, false))?;
+                self.fmt_operand(f, lhs, false)?;
                 write!(f, " {op} ")?;
-                rhs.fmt_wrapped(f, rhs.needs_parens(*op, true))
+                self.fmt_operand(f, rhs, true)
             }
             Formula::Function { function, args } => {
                 write!(f, "{function}(")?;
@@ -67,6 +66,16 @@ impl<T: Display, K: Display> Display for Formula<T, K> {
 }
 
 impl<T: Display, K: Display> Formula<T, K> {
+    /// Writes `operand` of `self`, in parentheses when it binds less tightly
+    /// than `self`, or equally tightly and `on_right` is set. Operators
+    /// associate left, so a right operand that binds equally needs parentheses.
+    /// A negation inside a negation needs them too, because the grammar takes
+    /// only one `-` before an operand.
+    fn fmt_operand(&self, f: &mut Formatter<'_>, operand: &Self, on_right: bool) -> fmt::Result {
+        let (outer, inner) = (self.precedence(), operand.precedence());
+        operand.fmt_wrapped(f, inner < outer || (on_right && inner == outer))
+    }
+
     /// Writes `self`, in parentheses when `parens` is set.
     fn fmt_wrapped(&self, f: &mut Formatter<'_>, parens: bool) -> fmt::Result {
         if parens {
@@ -78,24 +87,19 @@ impl<T: Display, K: Display> Formula<T, K> {
 }
 
 impl<T, K> Formula<T, K> {
-    /// Whether `self`, as an operand of `op`, needs parentheses to parse back
-    /// to the same tree. A looser-binding operator always does, and so does
-    /// an equally tight one on the right, because operators associate left.
-    /// A unary minus binds tightest of all, so it never does.
-    fn needs_parens(&self, op: Op, on_right: bool) -> bool {
+    /// The precedence of `self` as an operand: a higher value binds tighter.
+    fn precedence(&self) -> u8 {
         match self {
-            Formula::Op { op: inner, .. } => {
-                precedence(*inner) < precedence(op)
-                    || (on_right && precedence(*inner) == precedence(op))
-            }
-            _ => false,
+            Formula::Op {
+                op: Op::Add | Op::Sub,
+                ..
+            } => 1,
+            Formula::Op {
+                op: Op::Mul | Op::Div,
+                ..
+            } => 2,
+            Formula::Neg(_) => 3,
+            Formula::Constant(_) | Formula::Component(_) | Formula::Function { .. } => 4,
         }
-    }
-}
-
-fn precedence(op: Op) -> u8 {
-    match op {
-        Op::Add | Op::Sub => 1,
-        Op::Mul | Op::Div => 2,
     }
 }
