@@ -30,6 +30,11 @@ use std::ops::Neg;
 /// - a constant is negative — `Constant(Some(-2.0))` renders as `-2`, which
 ///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`. And
 ///   `Neg(Constant(Some(-2.0)))` renders as `--2`, which does not parse.
+/// - a hand-built `Sum` or `Product` has an empty `rest` — it renders as its
+///   first operand alone, but keeps the parentheses a longer chain would have.
+///   A `Product` with `first: #1 + #2` and an empty `rest` renders as
+///   `(#1 + #2)`. A `Sum` with `first: #2` and an empty `rest`, used as the
+///   right side of `#1 * …`, renders as `#1 * (#2)`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Formula<T, K = u64> {
     /// A constant, or `None` for the known-missing constant.
@@ -44,6 +49,20 @@ pub enum Formula<T, K = u64> {
         op: Op,
         /// The right-hand operand.
         rhs: Box<Formula<T, K>>,
+    },
+    /// Operands added and subtracted left to right: `first + a - b …`.
+    Sum {
+        /// The first operand.
+        first: Box<Formula<T, K>>,
+        /// Each further operand, with the operator that applies it.
+        rest: Vec<(SumOp, Formula<T, K>)>,
+    },
+    /// Operands multiplied and divided left to right: `first * a / b …`.
+    Product {
+        /// The first operand.
+        first: Box<Formula<T, K>>,
+        /// Each further operand, with the operator that applies it.
+        rest: Vec<(ProductOp, Formula<T, K>)>,
     },
     /// A function call over one or more argument expressions.
     Function {
@@ -81,6 +100,16 @@ impl<T, K> Formula<T, K> {
                 lhs.collect_components(into);
                 rhs.collect_components(into);
             }
+            Formula::Sum { first, rest } => {
+                for operand in Self::chain_operands(first, rest) {
+                    operand.collect_components(into);
+                }
+            }
+            Formula::Product { first, rest } => {
+                for operand in Self::chain_operands(first, rest) {
+                    operand.collect_components(into);
+                }
+            }
             Formula::Function { args, .. } => {
                 for arg in args {
                     arg.collect_components(into);
@@ -105,6 +134,14 @@ impl<T, K> Formula<T, K> {
                 op,
                 rhs: Box::new(rhs.map_components_ref(f)),
             },
+            Formula::Sum { first, rest } => Formula::Sum {
+                first: Box::new(first.map_components_ref(f)),
+                rest: Self::map_rest(rest, f),
+            },
+            Formula::Product { first, rest } => Formula::Product {
+                first: Box::new(first.map_components_ref(f)),
+                rest: Self::map_rest(rest, f),
+            },
             Formula::Function { function, args } => Formula::Function {
                 function,
                 args: args
@@ -113,6 +150,21 @@ impl<T, K> Formula<T, K> {
                     .collect(),
             },
         }
+    }
+
+    /// The operands of a sum or product, `first` included, in order.
+    fn chain_operands<'a, O>(
+        first: &'a Self,
+        rest: &'a [(O, Self)],
+    ) -> impl Iterator<Item = &'a Self> {
+        std::iter::once(first).chain(rest.iter().map(|(_, operand)| operand))
+    }
+
+    /// Re-keys the `rest` operands of a sum or product, keeping the operators.
+    fn map_rest<O, K2>(rest: Vec<(O, Self)>, f: &impl Fn(K) -> K2) -> Vec<(O, Formula<T, K2>)> {
+        rest.into_iter()
+            .map(|(op, operand)| (op, operand.map_components_ref(f)))
+            .collect()
     }
 
     /// `COALESCE(self, other)`, merging either side that is already a coalesce.
@@ -238,9 +290,36 @@ impl<T: Float, K> Formula<T, K> {
                 let rhs = rhs.evaluate(source)?;
                 op.apply(lhs, rhs)
             }
+            Formula::Sum { first, rest } => {
+                Self::evaluate_chain(first, rest, source, SumOp::apply)?
+            }
+            Formula::Product { first, rest } => {
+                Self::evaluate_chain(first, rest, source, ProductOp::apply)?
+            }
             Formula::Function { function, args } => function.evaluate(args, source)?,
         };
         Ok(reading.and_then(|value| value.is_finite().then_some(value)))
+    }
+
+    /// Evaluates a sum or product left to right. Every operand is read before
+    /// it is combined, so a `None` never hides a later operand from the source.
+    ///
+    /// The running value is not checked for finiteness; `evaluate` checks the
+    /// chain's result. Every operand comes from `evaluate`, so its value, when
+    /// it has one, is finite. An infinite or NaN running value stays infinite
+    /// or NaN under `+ - * /` with a finite operand.
+    fn evaluate_chain<O: Copy>(
+        first: &Self,
+        rest: &[(O, Self)],
+        source: &mut impl ValueSource<T, K>,
+        apply: impl Fn(O, T, T) -> T,
+    ) -> Result<Reading<T>, FormulaError> {
+        let mut acc = first.evaluate(source)?;
+        for (op, operand) in rest {
+            let next = operand.evaluate(source)?;
+            acc = acc.zip(next).map(|(lhs, rhs)| apply(*op, lhs, rhs));
+        }
+        Ok(acc)
     }
 }
 
@@ -271,6 +350,45 @@ impl Op {
             Op::Mul => l * r,
             Op::Div => l / r,
         })
+    }
+}
+
+/// The operator that applies an operand of a [`Formula::Sum`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SumOp {
+    /// Addition.
+    Add,
+    /// Subtraction.
+    Sub,
+}
+
+/// The operator that applies an operand of a [`Formula::Product`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ProductOp {
+    /// Multiplication.
+    Mul,
+    /// Division. Division by zero gives infinity or NaN, which evaluates to
+    /// `None`.
+    Div,
+}
+
+impl SumOp {
+    fn apply<T: Float>(self, lhs: T, rhs: T) -> T {
+        match self {
+            SumOp::Add => lhs + rhs,
+            SumOp::Sub => lhs - rhs,
+        }
+    }
+}
+
+impl ProductOp {
+    fn apply<T: Float>(self, lhs: T, rhs: T) -> T {
+        match self {
+            ProductOp::Mul => lhs * rhs,
+            ProductOp::Div => lhs / rhs,
+        }
     }
 }
 

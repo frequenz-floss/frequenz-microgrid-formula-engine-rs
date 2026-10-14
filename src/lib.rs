@@ -60,7 +60,7 @@ mod parser;
 mod value_source;
 
 pub use error::FormulaError;
-pub use formula::{Formula, Function, Op};
+pub use formula::{Formula, Function, Op, ProductOp, SumOp};
 pub use num_traits::Float;
 #[cfg(test)]
 pub(crate) use parser::parse;
