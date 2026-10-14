@@ -9,18 +9,7 @@
 
 use std::fmt::{self, Display, Formatter};
 
-use crate::formula::{Formula, Function, Op, ProductOp, SumOp};
-
-impl Display for Op {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Op::Add => "+",
-            Op::Sub => "-",
-            Op::Mul => "*",
-            Op::Div => "/",
-        })
-    }
-}
+use crate::formula::{Formula, Function, ProductOp, SumOp};
 
 impl Display for SumOp {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -63,11 +52,6 @@ impl<T: Display, K: Display> Display for Formula<T, K> {
             Formula::Neg(inner) => {
                 f.write_str("-")?;
                 self.fmt_operand(f, inner, true)
-            }
-            Formula::Op { lhs, op, rhs } => {
-                self.fmt_operand(f, lhs, false)?;
-                write!(f, " {op} ")?;
-                self.fmt_operand(f, rhs, true)
             }
             Formula::Sum { first, rest } => self.fmt_chain(f, first, rest),
             Formula::Product { first, rest } => self.fmt_chain(f, first, rest),
@@ -125,14 +109,6 @@ impl<T, K> Formula<T, K> {
     /// The precedence of `self` as an operand: a higher value binds tighter.
     fn precedence(&self) -> u8 {
         match self {
-            Formula::Op {
-                op: Op::Add | Op::Sub,
-                ..
-            } => 1,
-            Formula::Op {
-                op: Op::Mul | Op::Div,
-                ..
-            } => 2,
             Formula::Sum { .. } => 1,
             Formula::Product { .. } => 2,
             Formula::Neg(_) => 3,

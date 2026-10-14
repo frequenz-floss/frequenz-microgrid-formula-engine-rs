@@ -53,15 +53,6 @@ pub enum Formula<T, K = u64> {
     Constant(Option<T>),
     /// The arithmetic negation of an expression (`-expr`).
     Neg(Box<Formula<T, K>>),
-    /// A binary operator applied to two operands.
-    Op {
-        /// The left-hand operand.
-        lhs: Box<Formula<T, K>>,
-        /// The operator.
-        op: Op,
-        /// The right-hand operand.
-        rhs: Box<Formula<T, K>>,
-    },
     /// Operands added and subtracted left to right: `first + a - b …`.
     Sum {
         /// The first operand.
@@ -108,10 +99,6 @@ impl<T, K> Formula<T, K> {
                 into.insert(key.clone());
             }
             Formula::Neg(expr) => expr.collect_components(into),
-            Formula::Op { lhs, rhs, .. } => {
-                lhs.collect_components(into);
-                rhs.collect_components(into);
-            }
             Formula::Sum { first, rest } => {
                 for operand in Self::chain_operands(first, rest) {
                     operand.collect_components(into);
@@ -141,11 +128,6 @@ impl<T, K> Formula<T, K> {
             Formula::Constant(value) => Formula::Constant(value),
             Formula::Component(key) => Formula::Component(f(key)),
             Formula::Neg(expr) => Formula::Neg(Box::new(expr.map_components_ref(f))),
-            Formula::Op { lhs, op, rhs } => Formula::Op {
-                lhs: Box::new(lhs.map_components_ref(f)),
-                op,
-                rhs: Box::new(rhs.map_components_ref(f)),
-            },
             Formula::Sum { first, rest } => Formula::Sum {
                 first: Box::new(first.map_components_ref(f)),
                 rest: Self::map_rest(rest, f),
@@ -311,11 +293,6 @@ impl<T: Float, K> Formula<T, K> {
             Formula::Constant(value) => Reading::Known(*value),
             Formula::Component(id) => source.read(id),
             Formula::Neg(expr) => expr.evaluate(source)?.map(Neg::neg),
-            Formula::Op { lhs, op, rhs } => {
-                let lhs = lhs.evaluate(source)?;
-                let rhs = rhs.evaluate(source)?;
-                op.apply(lhs, rhs)
-            }
             Formula::Sum { first, rest } => {
                 Self::evaluate_chain(first, rest, source, SumOp::apply)?
             }
@@ -346,36 +323,6 @@ impl<T: Float, K> Formula<T, K> {
             acc = acc.zip(next).map(|(lhs, rhs)| apply(*op, lhs, rhs));
         }
         Ok(acc)
-    }
-}
-
-/// A binary arithmetic operator.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Op {
-    /// Addition.
-    Add,
-    /// Subtraction.
-    Sub,
-    /// Multiplication.
-    Mul,
-    /// Division. Division by zero gives infinity or NaN, which evaluates
-    /// to `None`.
-    Div,
-}
-
-impl Op {
-    /// Combines two already-read operands. Both are read before this is
-    /// called, so a `None` on one side never hides the other from the
-    /// source. The result may be infinite or NaN; [`Formula::evaluate`]
-    /// turns that into `None`.
-    pub(crate) fn apply<T: Float>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
-        lhs.zip(rhs).map(|(l, r)| match self {
-            Op::Add => l + r,
-            Op::Sub => l - r,
-            Op::Mul => l * r,
-            Op::Div => l / r,
-        })
     }
 }
 
