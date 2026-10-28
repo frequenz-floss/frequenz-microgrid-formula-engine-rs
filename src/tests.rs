@@ -373,12 +373,12 @@ fn test_large_microgrid_formula(components: HashMap<u64, Option<f32>>) {
 
 #[test]
 fn test_large_microgrid_formula_fuzz() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     for _ in 0..100 {
         let mut components = HashMap::new();
         for i in 2..8 {
-            let value = if rng.gen_bool(0.5) {
-                Some(0.5 - rng.gen::<f32>())
+            let value = if rng.random_bool(0.5) {
+                Some(0.5 - rng.random::<f32>())
             } else {
                 None
             };
@@ -438,12 +438,12 @@ fn test_large_microgrid_formula_2(components: HashMap<u64, Option<f32>>) {
 
 #[test]
 fn test_large_microgrid_formula_2_fuzz() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     for _ in 0..100 {
         let mut components = HashMap::new();
         for i in 1..8 {
-            let value = if rng.gen_bool(0.5) {
-                Some(0.5 - rng.gen::<f32>())
+            let value = if rng.random_bool(0.5) {
+                Some(0.5 - rng.random::<f32>())
             } else {
                 None
             };

@@ -16,4 +16,4 @@ pest_derive = "2.6"
 num-traits = "0.2"
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.9"
