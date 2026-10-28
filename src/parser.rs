@@ -2,16 +2,16 @@
 // Copyright © 2024 Frequenz Energy-as-a-Service GmbH
 
 use pest::{
+    Parser,
     iterators::{Pair, Pairs},
     pratt_parser::PrattParser,
-    Parser,
 };
 use pest_derive::Parser;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use crate::formula::{Formula, Function};
 use crate::FormulaError;
+use crate::formula::{Formula, Function};
 use num_traits::Float;
 
 #[derive(Parser)]
@@ -19,8 +19,8 @@ use num_traits::Float;
 struct FormulaParser;
 
 static PRATT_PARSER: LazyLock<PrattParser<Rule>> = LazyLock::new(|| {
-    use pest::pratt_parser::{Assoc::*, Op};
     use Rule::*;
+    use pest::pratt_parser::{Assoc::*, Op};
 
     PrattParser::new()
         .op(Op::infix(add, Left) | Op::infix(sub, Left))
@@ -128,7 +128,7 @@ where
                 rule => {
                     return Err(FormulaError::InternalError(format!(
                         "expected atom, found {rule:?}"
-                    )))
+                    )));
                 }
             })
         })
@@ -142,7 +142,7 @@ where
                 rule => {
                     return Err(FormulaError::InternalError(format!(
                         "expected operator, found {rule:?}"
-                    )))
+                    )));
                 }
             })
         })

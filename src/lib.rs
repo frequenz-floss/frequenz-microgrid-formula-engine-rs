@@ -62,9 +62,9 @@ mod value_source;
 pub use error::FormulaError;
 pub use formula::{Formula, Function, ProductOp, SumOp};
 pub use num_traits::Float;
+pub use parser::MAX_NESTING;
 #[cfg(test)]
 pub(crate) use parser::parse;
-pub use parser::MAX_NESTING;
 pub use value_source::{Reading, ValueSource};
 
 #[cfg(test)]

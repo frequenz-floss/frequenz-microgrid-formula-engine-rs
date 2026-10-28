@@ -11,6 +11,7 @@ A chain of `+` and `-`, or of `*` and `/`, is now one node in the formula tree. 
   - Code that builds formulas with the `+ - * /` operators or by parsing needs no change. Code that builds `Formula::Op { lhs, op, rhs }` directly can write `*lhs + *rhs` (or `-`, `*`, `/`) instead. Code that walks the tree and recurses into `lhs` and `rhs` has to visit `first` and then each operand in `rest`.
   - `a + b` and `a - b` add `b` to the end of `a` when `a` is already a sum. `a * b` and `a / b` do the same when `a` is already a product. A `Sum` whose first operand is a `Sum`, or a `Product` whose first operand is a `Product`, can only be built by writing the variant directly.
 - `MAX_DEPTH` and `FormulaError::TooDeep` are removed. A chain of `+` and `-`, or of `*` and `/`, is now one node, so the number of operators no longer needs a limit. Remove any use of `MAX_DEPTH` and any `match` arm for `TooDeep`. `MAX_NESTING` is now the only limit on the shape of a parsed formula.
+- The crate now uses Rust edition 2024, so building it needs Rust 1.85 or newer.
 
 ## New Features
 

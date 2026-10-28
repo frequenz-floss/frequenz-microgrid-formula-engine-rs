@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::formula::Formula;
-use crate::{parse, FormulaError, Reading};
+use crate::{FormulaError, Reading, parse};
 
 mod builders;
 mod demand;
