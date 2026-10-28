@@ -4,20 +4,27 @@
 //! Rendering formulas back to strings.
 //!
 //! An operand is parenthesised only where precedence or left associativity
-//! requires it, so a long operator chain renders flat. The [`Formula`] docs
-//! list the cases where the output does not round-trip.
+//! requires it, so a sum or product renders as one flat chain. The [`Formula`]
+//! docs list the cases where the output does not round-trip.
 
 use std::fmt::{self, Display, Formatter};
 
-use crate::formula::{Formula, Function, Op};
+use crate::formula::{Formula, Function, ProductOp, SumOp};
 
-impl Display for Op {
+impl Display for SumOp {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Op::Add => "+",
-            Op::Sub => "-",
-            Op::Mul => "*",
-            Op::Div => "/",
+            SumOp::Add => "+",
+            SumOp::Sub => "-",
+        })
+    }
+}
+
+impl Display for ProductOp {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            ProductOp::Mul => "*",
+            ProductOp::Div => "/",
         })
     }
 }
@@ -44,14 +51,10 @@ impl<T: Display, K: Display> Display for Formula<T, K> {
             Formula::Component(key) => write!(f, "#{key}"),
             Formula::Neg(inner) => {
                 f.write_str("-")?;
-                let nested = matches!(**inner, Formula::Op { .. } | Formula::Neg(_));
-                inner.fmt_wrapped(f, nested)
+                self.fmt_operand(f, inner, true)
             }
-            Formula::Op { lhs, op, rhs } => {
-                lhs.fmt_wrapped(f, lhs.needs_parens(*op, false))?;
-                write!(f, " {op} ")?;
-                rhs.fmt_wrapped(f, rhs.needs_parens(*op, true))
-            }
+            Formula::Sum { first, rest } => self.fmt_chain(f, first, rest),
+            Formula::Product { first, rest } => self.fmt_chain(f, first, rest),
             Formula::Function { function, args } => {
                 write!(f, "{function}(")?;
                 for (i, arg) in args.iter().enumerate() {
@@ -67,6 +70,31 @@ impl<T: Display, K: Display> Display for Formula<T, K> {
 }
 
 impl<T: Display, K: Display> Formula<T, K> {
+    /// Writes the operands of `self`, a sum or product, with their operators.
+    fn fmt_chain<O: Display>(
+        &self,
+        f: &mut Formatter<'_>,
+        first: &Self,
+        rest: &[(O, Self)],
+    ) -> fmt::Result {
+        self.fmt_operand(f, first, false)?;
+        for (op, operand) in rest {
+            write!(f, " {op} ")?;
+            self.fmt_operand(f, operand, true)?;
+        }
+        Ok(())
+    }
+
+    /// Writes `operand` of `self`, in parentheses when it binds less tightly
+    /// than `self`, or equally tightly and `on_right` is set. Operators
+    /// associate left, so a right operand that binds equally needs parentheses.
+    /// A negation inside a negation needs them too, because the grammar takes
+    /// only one `-` before an operand.
+    fn fmt_operand(&self, f: &mut Formatter<'_>, operand: &Self, on_right: bool) -> fmt::Result {
+        let (outer, inner) = (self.precedence(), operand.precedence());
+        operand.fmt_wrapped(f, inner < outer || (on_right && inner == outer))
+    }
+
     /// Writes `self`, in parentheses when `parens` is set.
     fn fmt_wrapped(&self, f: &mut Formatter<'_>, parens: bool) -> fmt::Result {
         if parens {
@@ -78,24 +106,13 @@ impl<T: Display, K: Display> Formula<T, K> {
 }
 
 impl<T, K> Formula<T, K> {
-    /// Whether `self`, as an operand of `op`, needs parentheses to parse back
-    /// to the same tree. A looser-binding operator always does, and so does
-    /// an equally tight one on the right, because operators associate left.
-    /// A unary minus binds tightest of all, so it never does.
-    fn needs_parens(&self, op: Op, on_right: bool) -> bool {
+    /// The precedence of `self` as an operand: a higher value binds tighter.
+    fn precedence(&self) -> u8 {
         match self {
-            Formula::Op { op: inner, .. } => {
-                precedence(*inner) < precedence(op)
-                    || (on_right && precedence(*inner) == precedence(op))
-            }
-            _ => false,
+            Formula::Sum { .. } => 1,
+            Formula::Product { .. } => 2,
+            Formula::Neg(_) => 3,
+            Formula::Constant(_) | Formula::Component(_) | Formula::Function { .. } => 4,
         }
-    }
-}
-
-fn precedence(op: Op) -> u8 {
-    match op {
-        Op::Add | Op::Sub => 1,
-        Op::Mul | Op::Div => 2,
     }
 }

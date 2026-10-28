@@ -40,6 +40,10 @@ fn coalesce_stops_at_unknown() {
 #[test]
 fn strict_nodes_yield_unknown_over_none() {
     assert_eq!(eval("#1 + #2", &[(1, None)]), Reading::Unknown);
+    assert_eq!(
+        eval("#1 + #2 - #3", &[(1, None), (3, Some(1.0))]),
+        Reading::Unknown
+    );
     assert_eq!(eval("MIN(#1, #2)", &[(1, None)]), Reading::Unknown);
     assert_eq!(eval("-#1", &[]), Reading::Unknown);
 }
@@ -48,6 +52,10 @@ fn strict_nodes_yield_unknown_over_none() {
 fn strict_nodes_yield_none_when_any_operand_is_none() {
     assert_eq!(
         eval("#1 + #2", &[(1, None), (2, Some(1.0))]),
+        Reading::Known(None)
+    );
+    assert_eq!(
+        eval("#1 * #2 / #3", &[(1, Some(1.0)), (2, None), (3, Some(2.0))]),
         Reading::Known(None)
     );
     assert_eq!(
@@ -127,5 +135,36 @@ fn coalesce_moves_past_a_non_finite_value() {
             &[(1, Some(1e30)), (2, Some(1e30))]
         ),
         Reading::Known(Some(0.0))
+    );
+}
+
+#[test]
+fn mixed_operator_chains_apply_each_operator() {
+    assert_eq!(
+        eval(
+            "#1 + #2 - #3",
+            &[(1, Some(10.0)), (2, Some(5.0)), (3, Some(3.0))]
+        ),
+        Reading::Known(Some(12.0))
+    );
+    assert_eq!(
+        eval(
+            "#1 * #2 / #3",
+            &[(1, Some(6.0)), (2, Some(2.0)), (3, Some(4.0))]
+        ),
+        Reading::Known(Some(3.0))
+    );
+    assert_eq!(
+        eval(
+            "#1 - #2 + #3 / #4 * #5",
+            &[
+                (1, Some(10.0)),
+                (2, Some(4.0)),
+                (3, Some(6.0)),
+                (4, Some(3.0)),
+                (5, Some(2.0))
+            ]
+        ),
+        Reading::Known(Some(10.0))
     );
 }

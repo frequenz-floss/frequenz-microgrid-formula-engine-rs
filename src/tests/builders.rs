@@ -3,26 +3,33 @@
 
 use std::collections::HashSet;
 
-use super::parsed;
-use crate::Formula;
-
-fn c(id: u64) -> Formula<f32> {
-    Formula::Component(id)
-}
-
-fn k(v: f32) -> Formula<f32> {
-    Formula::Constant(Some(v))
-}
+use super::{c, k, parsed};
+use crate::{Formula, ProductOp, SumOp};
 
 #[test]
 fn operators_build_the_same_tree_as_the_parser() {
     assert_eq!(c(1) + c(2), parsed("#1 + #2"));
     assert_eq!(c(1) - k(2.0), parsed("#1 - 2"));
-    assert_eq!(c(1) * c(2) / c(3), parsed("#1 * #2 / #3"));
     assert_eq!(-c(1), parsed("-#1"));
     assert_eq!(-(c(1) + c(2)), parsed("-(#1 + #2)"));
     assert_eq!((c(1) + c(2)) * k(3.0), parsed("(#1 + #2) * 3"));
     assert_eq!(Formula::<f32>::Constant(None) + c(1), parsed("None + #1"));
+
+    let sum = Formula::Sum {
+        first: Box::new(c(1)),
+        rest: vec![(SumOp::Add, c(2)), (SumOp::Sub, c(3))],
+    };
+    assert_eq!(c(1) + c(2) - c(3), sum);
+    assert_eq!(parsed("#1 + #2 - #3"), sum);
+    assert_eq!(parsed("(#1 + #2) - #3"), sum);
+
+    let product = Formula::Product {
+        first: Box::new(c(1)),
+        rest: vec![(ProductOp::Mul, c(2)), (ProductOp::Div, c(3))],
+    };
+    assert_eq!(c(1) * c(2) / c(3), product);
+    assert_eq!(parsed("#1 * #2 / #3"), product);
+    assert_eq!(parsed("(#1 * #2) / #3"), product);
 }
 
 #[test]

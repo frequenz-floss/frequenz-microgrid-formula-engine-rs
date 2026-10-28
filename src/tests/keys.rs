@@ -37,6 +37,15 @@ fn map_components_keeps_negation() {
 }
 
 #[test]
+fn map_components_retags_every_chain_operand() {
+    let mapped = parsed("#1 * #2 / #3 - #4").map_components(|id| format!("power:{id}"));
+    assert_eq!(
+        mapped.to_string(),
+        "#power:1 * #power:2 / #power:3 - #power:4"
+    );
+}
+
+#[test]
 fn parsed_formula_reports_its_components() {
     assert_eq!(parsed("MIN(#3, #4)").components(), HashSet::from([3, 4]));
 }

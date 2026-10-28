@@ -27,11 +27,6 @@ pub enum FormulaError {
         /// The nesting limit that was exceeded.
         limit: usize,
     },
-    /// A tree deeper than the limit, counting operators.
-    TooDeep {
-        /// The depth limit that was exceeded.
-        limit: usize,
-    },
     /// A function call with a number of arguments it does not take.
     WrongArity {
         /// The function that was called.
@@ -57,7 +52,6 @@ impl Display for FormulaError {
             FormulaError::NestedTooDeep { limit } => {
                 write!(f, "Formula nests deeper than {limit} levels")
             }
-            FormulaError::TooDeep { limit } => write!(f, "Formula is deeper than {limit} levels"),
             FormulaError::WrongArity { function, args: 0 } => {
                 write!(f, "{function} requires at least one argument")
             }

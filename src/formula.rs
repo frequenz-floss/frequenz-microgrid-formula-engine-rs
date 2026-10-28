@@ -16,9 +16,19 @@ use std::ops::Neg;
 /// from [`Reading::Unknown`](crate::Reading::Unknown), meaning the value
 /// is not known yet.
 ///
-/// Every walk over the tree recurses once per level. Parsing bounds the
-/// depth by [`MAX_DEPTH`](crate::MAX_DEPTH); a hand-built formula
-/// deeper than that may overflow the stack.
+/// Every walk over the tree recurses once per level. A chain of `+` and `-`, or
+/// of `*` and `/`, is one node however long it is. So each level of parentheses
+/// or function calls adds only a few levels to a parsed formula, and parsing
+/// bounds that nesting by [`MAX_NESTING`](crate::MAX_NESTING).
+///
+/// Each operator or builder call adds at most one level above its deepest
+/// operand. When `a` is already a sum, `a + b` and `a - b` add `b` to the chain
+/// of `a` instead of wrapping `a`. `a * b` and `a / b` do the same when `a` is
+/// a product.
+///
+/// A formula that wraps the previous result again and again can still grow
+/// deep enough to overflow the stack. Examples are `total = x + total` and
+/// `total = total * x + y`.
 ///
 /// `Display` round-trips through `str::parse` for `K = u64` keys and finite,
 /// non-negative constants: `expr.to_string().parse() == Ok(expr)`.
@@ -28,21 +38,34 @@ use std::ops::Neg;
 ///   digits does not parse at all.
 /// - a constant is `NaN` or infinite — these do not parse back.
 /// - a constant is negative — `Constant(Some(-2.0))` renders as `-2`, which
-///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`.
+///   re-parses as `Neg(Constant(2.0))`, not `Constant(-2.0)`. And
+///   `Neg(Constant(Some(-2.0)))` renders as `--2`, which does not parse.
+/// - a hand-built `Sum` starts with a `Sum`, or a `Product` with a `Product` —
+///   the two render as one flat chain, which re-parses as a single node.
+/// - a hand-built `Sum` or `Product` has an empty `rest` — it renders as its
+///   first operand alone, but keeps the parentheses a longer chain would have.
+///   A `Product` with `first: #1 + #2` and an empty `rest` renders as
+///   `(#1 + #2)`. A `Sum` with `first: #2` and an empty `rest`, used as the
+///   right side of `#1 * …`, renders as `#1 * (#2)`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Formula<T, K = u64> {
     /// A constant, or `None` for the known-missing constant.
     Constant(Option<T>),
     /// The arithmetic negation of an expression (`-expr`).
     Neg(Box<Formula<T, K>>),
-    /// A binary operator applied to two operands.
-    Op {
-        /// The left-hand operand.
-        lhs: Box<Formula<T, K>>,
-        /// The operator.
-        op: Op,
-        /// The right-hand operand.
-        rhs: Box<Formula<T, K>>,
+    /// Operands added and subtracted left to right: `first + a - b …`.
+    Sum {
+        /// The first operand.
+        first: Box<Formula<T, K>>,
+        /// Each further operand, with the operator that applies it.
+        rest: Vec<(SumOp, Formula<T, K>)>,
+    },
+    /// Operands multiplied and divided left to right: `first * a / b …`.
+    Product {
+        /// The first operand.
+        first: Box<Formula<T, K>>,
+        /// Each further operand, with the operator that applies it.
+        rest: Vec<(ProductOp, Formula<T, K>)>,
     },
     /// A function call over one or more argument expressions.
     Function {
@@ -76,9 +99,15 @@ impl<T, K> Formula<T, K> {
                 into.insert(key.clone());
             }
             Formula::Neg(expr) => expr.collect_components(into),
-            Formula::Op { lhs, rhs, .. } => {
-                lhs.collect_components(into);
-                rhs.collect_components(into);
+            Formula::Sum { first, rest } => {
+                for operand in Self::chain_operands(first, rest) {
+                    operand.collect_components(into);
+                }
+            }
+            Formula::Product { first, rest } => {
+                for operand in Self::chain_operands(first, rest) {
+                    operand.collect_components(into);
+                }
             }
             Formula::Function { args, .. } => {
                 for arg in args {
@@ -99,10 +128,13 @@ impl<T, K> Formula<T, K> {
             Formula::Constant(value) => Formula::Constant(value),
             Formula::Component(key) => Formula::Component(f(key)),
             Formula::Neg(expr) => Formula::Neg(Box::new(expr.map_components_ref(f))),
-            Formula::Op { lhs, op, rhs } => Formula::Op {
-                lhs: Box::new(lhs.map_components_ref(f)),
-                op,
-                rhs: Box::new(rhs.map_components_ref(f)),
+            Formula::Sum { first, rest } => Formula::Sum {
+                first: Box::new(first.map_components_ref(f)),
+                rest: Self::map_rest(rest, f),
+            },
+            Formula::Product { first, rest } => Formula::Product {
+                first: Box::new(first.map_components_ref(f)),
+                rest: Self::map_rest(rest, f),
             },
             Formula::Function { function, args } => Formula::Function {
                 function,
@@ -112,6 +144,21 @@ impl<T, K> Formula<T, K> {
                     .collect(),
             },
         }
+    }
+
+    /// The operands of a sum or product, `first` included, in order.
+    fn chain_operands<'a, O>(
+        first: &'a Self,
+        rest: &'a [(O, Self)],
+    ) -> impl Iterator<Item = &'a Self> {
+        std::iter::once(first).chain(rest.iter().map(|(_, operand)| operand))
+    }
+
+    /// Re-keys the `rest` operands of a sum or product, keeping the operators.
+    fn map_rest<O, K2>(rest: Vec<(O, Self)>, f: &impl Fn(K) -> K2) -> Vec<(O, Formula<T, K2>)> {
+        rest.into_iter()
+            .map(|(op, operand)| (op, operand.map_components_ref(f)))
+            .collect()
     }
 
     /// `COALESCE(self, other)`, merging either side that is already a coalesce.
@@ -166,12 +213,26 @@ impl<T, K> Formula<T, K> {
         }
     }
 
-    fn binary(self, op: Op, rhs: Self) -> Self {
-        Formula::Op {
-            lhs: Box::new(self),
-            op,
-            rhs: Box::new(rhs),
-        }
+    /// `self op rhs`, appending to `self` if it is already a sum, so that a
+    /// chain stays one node.
+    fn sum(self, op: SumOp, rhs: Self) -> Self {
+        let (first, mut rest) = match self {
+            Formula::Sum { first, rest } => (first, rest),
+            lhs => (Box::new(lhs), Vec::new()),
+        };
+        rest.push((op, rhs));
+        Formula::Sum { first, rest }
+    }
+
+    /// `self op rhs`, appending to `self` if it is already a product, so that a
+    /// chain stays one node.
+    fn product(self, op: ProductOp, rhs: Self) -> Self {
+        let (first, mut rest) = match self {
+            Formula::Product { first, rest } => (first, rest),
+            lhs => (Box::new(lhs), Vec::new()),
+        };
+        rest.push((op, rhs));
+        Formula::Product { first, rest }
     }
 }
 
@@ -179,7 +240,7 @@ impl<T, K> std::ops::Add for Formula<T, K> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        self.binary(Op::Add, rhs)
+        self.sum(SumOp::Add, rhs)
     }
 }
 
@@ -187,7 +248,7 @@ impl<T, K> std::ops::Sub for Formula<T, K> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        self.binary(Op::Sub, rhs)
+        self.sum(SumOp::Sub, rhs)
     }
 }
 
@@ -195,7 +256,7 @@ impl<T, K> std::ops::Mul for Formula<T, K> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
-        self.binary(Op::Mul, rhs)
+        self.product(ProductOp::Mul, rhs)
     }
 }
 
@@ -203,7 +264,7 @@ impl<T, K> std::ops::Div for Formula<T, K> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self {
-        self.binary(Op::Div, rhs)
+        self.product(ProductOp::Div, rhs)
     }
 }
 
@@ -232,44 +293,75 @@ impl<T: Float, K> Formula<T, K> {
             Formula::Constant(value) => Reading::Known(*value),
             Formula::Component(id) => source.read(id),
             Formula::Neg(expr) => expr.evaluate(source)?.map(Neg::neg),
-            Formula::Op { lhs, op, rhs } => {
-                let lhs = lhs.evaluate(source)?;
-                let rhs = rhs.evaluate(source)?;
-                op.apply(lhs, rhs)
+            Formula::Sum { first, rest } => {
+                Self::evaluate_chain(first, rest, source, SumOp::apply)?
+            }
+            Formula::Product { first, rest } => {
+                Self::evaluate_chain(first, rest, source, ProductOp::apply)?
             }
             Formula::Function { function, args } => function.evaluate(args, source)?,
         };
         Ok(reading.and_then(|value| value.is_finite().then_some(value)))
     }
+
+    /// Evaluates a sum or product left to right. Every operand is read before
+    /// it is combined, so a `None` never hides a later operand from the source.
+    ///
+    /// The running value is not checked for finiteness; `evaluate` checks the
+    /// chain's result. Every operand comes from `evaluate`, so its value, when
+    /// it has one, is finite. An infinite or NaN running value stays infinite
+    /// or NaN under `+ - * /` with a finite operand.
+    fn evaluate_chain<O: Copy>(
+        first: &Self,
+        rest: &[(O, Self)],
+        source: &mut impl ValueSource<T, K>,
+        apply: impl Fn(O, T, T) -> T,
+    ) -> Result<Reading<T>, FormulaError> {
+        let mut acc = first.evaluate(source)?;
+        for (op, operand) in rest {
+            let next = operand.evaluate(source)?;
+            acc = acc.zip(next).map(|(lhs, rhs)| apply(*op, lhs, rhs));
+        }
+        Ok(acc)
+    }
 }
 
-/// A binary arithmetic operator.
+/// The operator that applies an operand of a [`Formula::Sum`].
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Op {
+pub enum SumOp {
     /// Addition.
     Add,
     /// Subtraction.
     Sub,
+}
+
+/// The operator that applies an operand of a [`Formula::Product`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ProductOp {
     /// Multiplication.
     Mul,
-    /// Division. Division by zero gives infinity or NaN, which evaluates
-    /// to `None`.
+    /// Division. Division by zero gives infinity or NaN, which evaluates to
+    /// `None`.
     Div,
 }
 
-impl Op {
-    /// Combines two already-read operands. Both are read before this is
-    /// called, so a `None` on one side never hides the other from the
-    /// source. The result may be infinite or NaN; [`Formula::evaluate`]
-    /// turns that into `None`.
-    pub(crate) fn apply<T: Float>(&self, lhs: Reading<T>, rhs: Reading<T>) -> Reading<T> {
-        lhs.zip(rhs).map(|(l, r)| match self {
-            Op::Add => l + r,
-            Op::Sub => l - r,
-            Op::Mul => l * r,
-            Op::Div => l / r,
-        })
+impl SumOp {
+    fn apply<T: Float>(self, lhs: T, rhs: T) -> T {
+        match self {
+            SumOp::Add => lhs + rhs,
+            SumOp::Sub => lhs - rhs,
+        }
+    }
+}
+
+impl ProductOp {
+    fn apply<T: Float>(self, lhs: T, rhs: T) -> T {
+        match self {
+            ProductOp::Mul => lhs * rhs,
+            ProductOp::Div => lhs / rhs,
+        }
     }
 }
 

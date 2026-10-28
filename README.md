@@ -66,9 +66,9 @@ be re-keyed by whatever the caller indexes its values with.
 
 ### Errors
 
-Parsing returns a `FormulaError` for a formula that does not parse,
-including wrong function arity, a constant too large for the number type,
-and a formula deeper than `MAX_NESTING` or `MAX_DEPTH` allows. `evaluate` returns an error only for a
+Parsing returns a `FormulaError` for a formula that does not parse, including
+wrong function arity, a constant too large for the number type, and a formula
+nested deeper than `MAX_NESTING` allows. `evaluate` returns an error only for a
 structurally invalid hand-built expression, such as a function with no
 arguments. Missing data never errors: division by zero, the square root of a
 negative number, and any NaN or infinite value yield `None`.

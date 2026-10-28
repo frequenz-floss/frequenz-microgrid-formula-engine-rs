@@ -65,6 +65,11 @@ fn coalesce_reads_only_up_to_the_first_unknown() {
 fn strict_nodes_read_every_operand() {
     assert_eq!(reads("#1 + #2", &[(1, None)]).1, HashSet::from([1, 2]));
     assert_eq!(reads("#1 + #2", &[]).1, HashSet::from([1, 2]));
+    assert_eq!(reads("#1 + #2 - #3", &[]).1, HashSet::from([1, 2, 3]));
+    assert_eq!(
+        reads("#1 * #2 / #3", &[(1, None)]).1,
+        HashSet::from([1, 2, 3])
+    );
     assert_eq!(
         reads("MIN(#1, #2, #3)", &[(1, None)]).1,
         HashSet::from([1, 2, 3])
