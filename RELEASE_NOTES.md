@@ -13,10 +13,6 @@ A chain of `+` and `-`, or of `*` and `/`, is now one node in the formula tree. 
 - `MAX_DEPTH` and `FormulaError::TooDeep` are removed. A chain of `+` and `-`, or of `*` and `/`, is now one node, so the number of operators no longer needs a limit. Remove any use of `MAX_DEPTH` and any `match` arm for `TooDeep`. `MAX_NESTING` is now the only limit on the shape of a parsed formula.
 - The crate now uses Rust edition 2024, so building it needs Rust 1.85 or newer.
 
-## New Features
-
-<!-- Here goes the main new features and examples or instructions on how to use them -->
-
 ## Bug Fixes
 
 - A formula with more than about 1000 operators, such as the consumer formula of a large site, now parses. It used to fail with `TooDeep`.
